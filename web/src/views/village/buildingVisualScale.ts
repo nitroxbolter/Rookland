@@ -10,6 +10,8 @@ export function buildingVisualScale(kind: BuildingKind, width: number, height: n
   const [artWidth, artHeight] = ART_BOUNDS[kind]
   // O portão ocupa 2 × 1 tiles. A arte já inclui a perspectiva vertical;
   // limitá-la pela altura do footprint encolhe também a largura e abre vãos.
-  if (kind === "gate") return 1
+  // Towers have a 2×2 ground footprint, while the roof and lookout rise above it.
+  // Keeping that vertical art at full size lets depth sorting hide a unit behind it.
+  if (kind === "gate" || kind === "tower") return 1
   return Math.min(1, (width * 16 - 2) / artWidth, (height * 16 - 2) / artHeight)
 }

@@ -185,9 +185,11 @@
   background-size: 100% 100%;
 }
 .structure-tower {
-  left: -5px;
-  width: 42px;
-  height: 42px;
+  /* The visible base stays within 2×2 tiles; the upper floor rises above them. */
+  left: -14px;
+  bottom: -2px;
+  width: 60px;
+  height: 60px;
   background-size: 100% 100%;
 }
 .structure-gate.structure-level-1 { background-image: url("/spritesheets/village/gate-level-1.png"); }
