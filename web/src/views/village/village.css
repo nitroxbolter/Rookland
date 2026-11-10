@@ -196,10 +196,13 @@
 .structure-tower.structure-level-1 { background-image: url("/spritesheets/village/tower-level-1.png"); }
 .structure-tower.structure-level-2 { background-image: url("/spritesheets/village/tower-level-2.png"); }
 .structure-tower.structure-level-3 { background-image: url("/spritesheets/village/tower-level-3.png"); }
-.creature-object { z-index: 1800; overflow: visible; }
-.creature-sprite { position: absolute; left: -8px; bottom: -5px; width: 32px; height: 28px; background-repeat: no-repeat; background-size: 200% 100%; image-rendering: pixelated; filter: drop-shadow(1px 2px 1px #24332877); }
+.creature-object { z-index: 1800; overflow: visible; width: 34px; height: 28px; transform: translate(-8px, -7px); }
+.creature-object.bear { width: 38px; height: 34px; transform: translate(-11px, -10px); }
+.village-shell .creature-object.is-targetable { cursor: crosshair; }
+.creature-object.is-targetable:hover .creature-sprite { filter: drop-shadow(0 0 3px #ed654c); }
+.creature-sprite { position: absolute; left: 0; bottom: 0; width: 34px; height: 28px; background-repeat: no-repeat; background-size: 200% 100%; image-rendering: pixelated; filter: drop-shadow(1px 2px 1px #24332877); }
 .creature-sprite.wolf { width: 34px; height: 28px; }
-.creature-sprite.bear { width: 38px; height: 34px; left: -11px; bottom: -8px; }
+.creature-sprite.bear { width: 38px; height: 34px; }
 .creature-sprite.is-animated { animation: creature-step .48s steps(1,end) infinite; }
 @keyframes creature-step { 50% { background-position: 100% 0; } }
 .health-bar { position: absolute; z-index: 2000; left: 1px; right: 1px; bottom: -4px; height: 2px; border: 1px solid #263229; border-radius: 3px; background: #302c27; overflow: hidden; pointer-events: none; }

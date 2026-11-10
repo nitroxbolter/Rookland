@@ -55,7 +55,7 @@ import {
   VILLAGE_SIZE,
 } from "../../../../shared/village/config"
 import { ERA_NAMES, unlockReason, villageEra } from "../../../../shared/village/progression"
-import { placementError, treePlacementError, wallLineCells } from "../../../../shared/village/simulation"
+import { placementError, treePlacementError, walkable, wallLineCells } from "../../../../shared/village/simulation"
 import { createVillageTerrain } from "../../../../shared/village/terrain"
 import type {
   Building,
@@ -363,6 +363,10 @@ function VillageScene({ village }: { village: VillageState }) {
     width: village.width, height: village.height, mapTiles: JSON.parse(terrainSignature),
   }), [village.width, village.height, terrainSignature])
   const [selection, setSelection] = useState<Selection>(null)
+  const [selectedMilitaryIds, setSelectedMilitaryIds] = useState<string[]>([])
+  useEffect(() => {
+    if (selection?.kind !== "unit") setSelectedMilitaryIds([])
+  }, [selection])
   const [build, setBuild] = useState<BuildMode>(null)
   const [crop, setCrop] = useState<Crop>("carrot")
   const [mouseTile, setMouseTile] = useState<{ x: number; y: number } | null>(
@@ -389,6 +393,7 @@ function VillageScene({ village }: { village: VillageState }) {
         setWallStart(null)
         wallStartRef.current = null
         setSelection(null)
+        setSelectedMilitaryIds([])
         setTownMenu(false)
         setCatalogOpen(false)
         setTasksOpen(false)
@@ -418,6 +423,9 @@ function VillageScene({ village }: { village: VillageState }) {
     selection?.kind === "unit"
       ? village.units.find((u) => u.id === selection.id)
       : undefined
+  const selectedMilitary = selectedUnit && (selectedUnit.kind === "soldier" || selectedUnit.kind === "archer")
+    ? village.units.filter((unit) => selectedMilitaryIds.includes(unit.id) && unit.kind === selectedUnit.kind && unit.job.kind !== "garrison")
+    : []
   const selectedBuilding =
     selection?.kind === "building"
       ? village.buildings.find((b) => b.id === selection.id)
@@ -527,6 +535,7 @@ function VillageScene({ village }: { village: VillageState }) {
     }
   }
   function deselectUnit(unitId: string) {
+    setSelectedMilitaryIds([])
     setSelection((current) =>
       current?.kind === "unit" && current.id === unitId ? null : current,
     )
@@ -589,6 +598,30 @@ function VillageScene({ village }: { village: VillageState }) {
       }
     } else if (catalogOpen) {
       resetPanels()
+    } else if (selectedMilitary.length > 1) {
+      const destinations: { x: number; y: number }[] = []
+      const reserved = new Set<string>()
+      for (let radius = 0; radius < Math.max(village.width, village.height) && destinations.length < selectedMilitary.length; radius++)
+        for (let dy = -radius; dy <= radius && destinations.length < selectedMilitary.length; dy++)
+          for (let dx = -radius; dx <= radius && destinations.length < selectedMilitary.length; dx++) {
+            if (Math.abs(dx) + Math.abs(dy) !== radius) continue
+            const point = { x: p.x + dx, y: p.y + dy }
+            const key = `${point.x}-${point.y}`
+            if (!reserved.has(key) && walkable(village, point)) {
+              reserved.add(key)
+              destinations.push(point)
+            }
+          }
+      let moved = 0
+      for (const [index, unit] of selectedMilitary.entries()) {
+        const destination = destinations[index]
+        if (destination && await sendCommand({ type: "moveUnit", unitId: unit.id, ...destination })) moved++
+      }
+      if (moved) {
+        setNotice(`${moved} ${selectedUnit?.kind === "archer" ? "arqueiros" : "soldados"} a caminho.`)
+        setSelectedMilitaryIds([])
+        setSelection(null)
+      } else setNotice("Não há espaço livre para mover o grupo até esse local.")
     } else if (selectedUnit) {
       if (
         await sendCommand({ type: "moveUnit", unitId: selectedUnit.id, ...p })
@@ -696,6 +729,7 @@ function VillageScene({ village }: { village: VillageState }) {
     setTasksOpen(false)
     setTownMenu(false)
     setSelection(null)
+    setSelectedMilitaryIds([])
   }
 
   return (
@@ -704,7 +738,7 @@ function VillageScene({ village }: { village: VillageState }) {
         viewport={viewport}
         farmHeight={VILLAGE_SIZE}
         farmWidth={VILLAGE_SIZE}
-        cursor={viewport.isDragging ? "grabbing" : build ? "crosshair" : "grab"}
+        cursor={viewport.isDragging ? "grabbing" : build || selectedUnit?.kind === "soldier" || selectedUnit?.kind === "archer" ? "crosshair" : "grab"}
         onClick={groundClick}
         onMouseMove={moveMouse}
         onMouseLeave={() => {
@@ -812,14 +846,18 @@ function VillageScene({ village }: { village: VillageState }) {
           <button type="button" key={creature.id}
             aria-label={`${creature.kind === "wolf" ? "Lobo" : "Urso"} selvagem · vida ${creature.health}/${creature.maxHealth}`}
             title={`${creature.kind === "wolf" ? "Lobo" : "Urso"} selvagem · ${creature.health}/${creature.maxHealth} vida · só ataca se for atacado`}
-            className={`world-object creature-object ${creature.kind} ${selection?.id === creature.id ? "is-selected" : ""}`}
+            className={`world-object creature-object ${creature.kind} ${selection?.id === creature.id ? "is-selected" : ""} ${selectedUnit ? "is-targetable" : ""}`}
             style={{ ...pointStyle(creature), zIndex: Math.floor((creature.y + 1) * 16) + 2 }}
             onClick={async (e) => {
               e.stopPropagation()
               if (selectedUnit) {
-                if (await sendCommand({ type: "attackCreature", unitId: selectedUnit.id, creatureId: creature.id })) {
+                const attackers = selectedMilitary.length > 1 ? selectedMilitary : [selectedUnit]
+                let ordered = 0
+                for (const unit of attackers)
+                  if (await sendCommand({ type: "attackCreature", unitId: unit.id, creatureId: creature.id })) ordered++
+                if (ordered) {
                   setSelection({ kind: "unit", id: selectedUnit.id })
-                  setNotice(`${selectedUnit.name} está atacando o ${creature.kind === "wolf" ? "lobo" : "urso"}.`)
+                  setNotice(`${ordered > 1 ? `${ordered} unidades estão` : `${selectedUnit.name} está`} atacando o ${creature.kind === "wolf" ? "lobo" : "urso"}.`)
                 }
               } else {
                 setSelection({ kind: "creature", id: creature.id })
@@ -836,7 +874,7 @@ function VillageScene({ village }: { village: VillageState }) {
             key={u.id}
             aria-label={`Selecionar ${u.name.toLowerCase()} no mapa`}
             title={`${u.name} · ${UNIT_STATUS[u.status]}`}
-            className={`world-object unit-object ${u.kind}`}
+            className={`world-object unit-object ${u.kind} ${selectedMilitaryIds.includes(u.id) ? "is-selected" : ""}`}
             style={{ ...pointStyle(u), zIndex: Math.floor((u.y + 1) * 16) }}
             onClick={(e) => {
               if (suppressWallClick.current) { suppressWallClick.current = false; e.stopPropagation(); return }
@@ -846,10 +884,19 @@ function VillageScene({ village }: { village: VillageState }) {
               }
               if (build) setBuild(null)
               e.stopPropagation()
+              setSelectedMilitaryIds([])
               setSelection({ kind: "unit", id: u.id })
             }}
+            onDoubleClick={(e) => {
+              if (u.kind !== "soldier" && u.kind !== "archer") return
+              e.stopPropagation()
+              const group = village.units.filter((unit) => unit.kind === u.kind && unit.job.kind !== "garrison")
+              setSelection({ kind: "unit", id: u.id })
+              setSelectedMilitaryIds(group.map((unit) => unit.id))
+              setNotice(`${group.length} ${u.kind === "archer" ? "arqueiros" : "soldados"} selecionados. Clique no terreno para mover o grupo.`)
+            }}
           >
-            <UnitArt unit={u} village={village} selected={selectedUnit?.id === u.id} />
+            <UnitArt unit={u} village={village} selected={selectedMilitaryIds.includes(u.id) || selectedUnit?.id === u.id} />
             {u.health !== undefined && u.maxHealth !== undefined && (u.job.kind === "attackCreature" || village.creatures?.some((creature) => creature.hostileTo === u.id) || u.health < u.maxHealth) && <span className={`health-bar ${(u.health / u.maxHealth) < 0.3 ? "is-low" : ""}`}><i style={{ width: `${Math.max(0, u.health / u.maxHealth * 100)}%` }} /></span>}
           </button>
         ))}
@@ -1169,7 +1216,7 @@ function VillageScene({ village }: { village: VillageState }) {
                       ? "PERSONAGEM"
                       : selectedUnit.kind === "soldier" || selectedUnit.kind === "archer" ? "UNIDADE MILITAR" : "TRABALHADOR"}
                   </span>
-                  <h2>{selectedUnit.name}</h2>
+                  <h2>{selectedMilitary.length > 1 ? `${selectedMilitary.length} ${selectedUnit.kind === "archer" ? "arqueiros" : "soldados"}` : selectedUnit.name}</h2>
                   <p>
                     <span className="status-dot" />
                     {UNIT_STATUS[selectedUnit.status]}
@@ -1184,7 +1231,9 @@ function VillageScene({ village }: { village: VillageState }) {
                 </button>
               </div>
               <p className="selection-description">
-                {selectedUnit.kind === "soldier" || selectedUnit.kind === "archer"
+                {selectedMilitary.length > 1
+                  ? "Grupo selecionado. Clique no terreno para mover em formação ou numa criatura para atacar com todos."
+                  : selectedUnit.kind === "soldier" || selectedUnit.kind === "archer"
                   ? `${selectedUnit.kind === "archer" ? "Arqueiro" : "Soldado"} da vila. ${selectedUnit.armored ? "Armadura equipada." : "Pode receber uma armadura da ferraria."} Clique no terreno para mover ou numa criatura para atacar.`
                   : selectedUnit.job.kind === "build"
                   ? "Construindo no local."
