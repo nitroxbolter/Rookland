@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#14251e">
+  <title>Guia da Vila · RookLand</title>
+  <style>
+    :root { color-scheme: dark; --bg: #14251e; --panel: #1e342a; --line: #405744; --ink: #f7efdb; --muted: #becbb8; --gold: #e7be72; --green: #a8ce91; }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 24px; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 1rem/1.6 system-ui, sans-serif; }
+    a { color: inherit; }
+    a:focus-visible, summary:focus-visible { outline: 3px solid var(--gold); outline-offset: 4px; }
+    p { margin: 0 0 1em; }
+    p:last-child { margin-bottom: 0; }
+    h1, h2, h3 { margin: 0; font-family: Georgia, serif; line-height: 1.1; }
+    h2 { font-size: clamp(2rem, 5vw, 3.2rem); }
+    h3 { font-size: 1.45rem; }
+    .wrap { width: min(1120px, 100% - 40px); margin-inline: auto; }
+    .skip { position: absolute; top: 4px; left: 12px; transform: translateY(-200%); background: var(--gold); color: #17251d; padding: 8px; z-index: 1; }
+    .skip:focus { transform: none; }
+    .top { border-bottom: 1px solid var(--line); }
+    .top .wrap, .foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-block: 12px; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font: bold 1.15rem Georgia, serif; letter-spacing: .04em; text-decoration: none; }
+    .brand img { width: 32px; height: 32px; }
+    .nav { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+    .nav a, .foot a { color: var(--muted); text-underline-offset: 4px; font-size: .92rem; }
+    .button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 16px; border: 1px solid var(--gold); border-radius: 7px; color: #1a2a20; background: var(--gold); font-weight: 750; text-decoration: none; }
+    .button.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
+    .button:hover { filter: brightness(1.12); }
+    .hero { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(20px, 4vw, 60px); align-items: center; padding-block: clamp(36px, 8vw, 92px); }
+    .eyebrow { color: var(--gold); font-size: .78rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 800; margin-bottom: 10px; }
+    .hero h1 { font-size: clamp(2.8rem, 7vw, 5.6rem); letter-spacing: -.055em; max-width: 9ch; }
+    .hero p:not(.eyebrow), .section-intro { color: var(--muted); max-width: 58ch; }
+    .hero h1 + p { margin-top: 18px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 9px; }
+    .scene { display: block; width: 100%; height: auto; border: 1px solid #627355; border-radius: 14px; box-shadow: 0 14px 45px #07181266; background: #243e32; }
+    .section { padding-block: clamp(30px, 6vw, 64px); border-top: 1px solid var(--line); }
+    .section-intro { margin: 10px 0 22px; }
+    .eras, .changes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+    .era-card { border-top: 3px solid var(--era, var(--gold)); }
+    .era-card h3 { margin-bottom: 10px; }
+    .era-label { color: var(--era, var(--gold)); margin-bottom: 6px; font-size: .8rem; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    .era-card p:last-child, .changes p, .muted, details p { color: var(--muted); }
+    .steps { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; align-items: start; }
+    .steps ol { margin: 0; padding-left: 1.45rem; }
+    .steps li { padding: 5px 0 5px 5px; }
+    .steps li::marker { color: var(--gold); font-weight: 800; }
+    .cost { background: #e8ca90; color: #203227; border-color: #ffdf9f; }
+    .cost .eyebrow { color: #60461f; }
+    .cost dl { display: flex; gap: 14px; justify-content: space-between; margin: 16px 0 0; }
+    .cost dd { margin: 0; font: bold 1.8rem Georgia, serif; }
+    .cost dt { font-size: .87rem; }
+    .changes h3 { margin-bottom: 10px; }
+    .tile-icon { width: 46px; height: 46px; margin-bottom: 10px; object-fit: contain; image-rendering: pixelated; }
+    .house-food { padding: 0; margin: 14px 0 0; list-style: none; }
+    .house-food li { display: flex; justify-content: space-between; gap: 8px; border-top: 1px solid var(--line); padding: 6px 0; }
+    details { margin-top: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0 14px; }
+    summary { padding: 10px 0; min-height: 44px; cursor: pointer; font-weight: 750; }
+    details p { padding-bottom: 12px; }
+    code { overflow-wrap: anywhere; color: var(--green); }
+    .foot { color: var(--muted); padding-block: 22px; border-top: 1px solid var(--line); }
+    @media (max-width: 760px) {
+      .wrap { width: calc(100% - 32px); }
+      .hero, .steps, .eras, .changes { grid-template-columns: 1fr; }
+      .hero h1 { max-width: 12ch; }
+      .hero { gap: 24px; }
+      .scene { max-height: 310px; }
+    }
+    @media (max-width: 440px) {
+      .top .wrap { align-items: flex-start; }
+      .nav { gap: 12px; }
+      .card { padding: 15px; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Ir para o conteúdo</a>
+  <header class="top">
+    <div class="wrap">
+      <a class="brand" href="/" aria-label="RookLand, menu do jogo"><img src="/spritesheets/village/cabin.svg" alt=""> RookLand</a>
+      <nav class="nav" aria-label="Seções do guia">
+        <a href="#eras">Eras</a>
+        <a href="#mudancas">Mudanças</a>
+        <a href="#save">Salvamento</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="conteudo" class="wrap">
+    <section class="hero" aria-labelledby="titulo">
+      <div>
+        <p class="eyebrow">Guia da vila</p>
+        <h1 id="titulo">Da primeira colheita ao reino.</h1>
+        <p>Plante, dê trabalho aos aldeões e faça a vila crescer. Saiba o que cada era libera e como chegar ao Comércio sem precisar minerar ferro.</p>
+        <div class="buttons">
+          <a class="button" href="/crops_farm">Voltar à vila</a>
+          <a class="button secondary" href="#primeiros-passos">Começar a evolução</a>
+        </div>
+      </div>
+      <svg class="scene" viewBox="0 0 560 350" role="img" aria-labelledby="cena-titulo">
+        <title id="cena-titulo">Uma aldeia em uma ilha, com uma cabana, um celeiro e campos cultivados.</title>
+        <defs>
+          <pattern id="ondas" width="96" height="43" patternUnits="userSpaceOnUse"><path d="M10 13h14m5 0h6m28 16h17" stroke="#b7d1a0" opacity=".17" stroke-width="2"/></pattern>
+          <pattern id="cultivo" width="14" height="14" patternUnits="userSpaceOnUse"><rect width="14" height="14" fill="#684f33"/><path d="M5 12V6H2V3h3v3h4V3h3v4H8v5z" fill="#a7bf62"/></pattern>
+        </defs>
+        <rect width="560" height="350" fill="#294b47"/>
+        <rect width="560" height="350" fill="url(#ondas)"/>
+        <path d="M78 233v-56h32v-38h49v-36h60V85h149v24h68v36h43v46h25v67h-39v32h-54v24H181v-18h-61v-25H78z" fill="#1d3531" opacity=".7"/>
+        <path d="M78 215v-56h32v-38h49V85h60V67h149v24h68v36h43v46h25v67h-39v32h-54v24H181v-18h-61v-25H78z" fill="#c9ac69"/>
+        <path d="M89 212v-48h32v-35h49V94h60V77h126v25h69v35h43v47h25v46h-39v32h-54v23H192v-17h-61v-25H89z" fill="#789c55"/>
+        <path d="M139 185h55v-20h114v18h110v36h-93v20H209v-22h-70z" fill="#b8a268"/>
+        <rect x="158" y="219" width="84" height="42" fill="url(#cultivo)" stroke="#514936" stroke-width="3"/>
+        <rect x="351" y="219" width="84" height="42" fill="url(#cultivo)" stroke="#514936" stroke-width="3"/>
+        <path d="M104 137h12v-13h12v-15h15v-13h17v15h13v13h13v13h9v26h-36v16h-18v-16h-37z" fill="#385f3b"/>
+        <path d="M411 131h12v-13h12v-15h15V90h17v15h13v13h13v13h9v26h-36v16h-18v-16h-37z" fill="#385f3b"/>
+        <image href="/spritesheets/village/cabin.svg" x="186" y="78" width="134" height="112"/>
+        <image href="/spritesheets/village/barn.svg" x="320" y="95" width="96" height="98"/>
+        <image href="/spritesheets/village/villager.svg" x="270" y="183" width="48" height="57"/>
+        <path d="M24 299h44m-21 11h36m385-23h41m-16 10h39" stroke="#9dc4ab" stroke-width="3" opacity=".5"/>
+      </svg>
+    </section>
+
+    <section id="eras" class="section" aria-labelledby="eras-titulo">
+      <p class="eyebrow">Mapa da progressão</p>
+      <h2 id="eras-titulo">Três eras, novas escolhas</h2>
+      <p class="section-intro">A era acompanha o nível do Centro da Vila. Os marcos abaixo descrevem uma vila nova. Saves anteriores mantêm seus desbloqueios iniciais.</p>
+      <div class="eras">
+        <article class="card era-card" style="--era:#acd294">
+          <p class="era-label">Era I · Centro N1</p>
+          <h3>Fundação</h3>
+          <p>Comece com cenoura, madeira, pedra e comida. A primeira colheita e a entrega ao celeiro liberam trigo, poço, curral de porcos e recrutamento.</p>
+        </article>
+        <article class="card era-card">
+          <p class="era-label">Era II · Centro N2–3</p>
+          <h3>Comércio</h3>
+          <p>Libera ferro, mercado, batata, ovelhas, vacas, ferraria, tecelagem e quartel. Ganhe ouro vendendo excedentes. Para minerá-lo, pesquise Cestos de Coleta.</p>
+        </article>
+        <article class="card era-card" style="--era:#a8c5e3">
+          <p class="era-label">Era III · Centro N4–5</p>
+          <h3>Fortaleza</h3>
+          <p>Libera torres, armaduras e casas de nível 3 em vilas novas. O quartel já treina soldados. Missões, expedições e batalhas entre jogadores estão no plano futuro.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="primeiros-passos" class="section" aria-labelledby="passos-titulo">
+      <p class="eyebrow">Primeira meta</p>
+      <h2 id="passos-titulo">Como chegar ao Comércio</h2>
+      <p class="section-intro">Abra o Centro da Vila para acompanhar os objetivos e iniciar a melhoria quando todos estiverem completos.</p>
+      <div class="steps">
+        <div class="card">
+          <ol>
+            <li>Em <strong>Construir</strong>, faça um <strong>celeiro</strong> com 60 madeira e 25 pedra para receber comida.</li>
+            <li>Em <strong>Tarefas</strong>, envie um trabalhador à fazenda inicial. Depois, construa uma <strong>casa</strong>.</li>
+            <li>Recrute um segundo aldeão, atribua <strong>dois aldeões à produção</strong> e acumule <strong>60 comidas colhidas</strong> para cumprir o objetivo.</li>
+            <li>Abra o <strong>Centro da Vila</strong> e selecione <strong>Avançar para Comércio</strong>.</li>
+          </ol>
+        </div>
+        <aside class="card cost" aria-label="Custo do avanço">
+          <p class="eyebrow">Investimento no Centro N2</p>
+          <h3>3 minutos de jogo</h3>
+          <dl>
+            <div><dt>Madeira</dt><dd>120</dd></div>
+            <div><dt>Pedra</dt><dd>80</dd></div>
+            <div><dt>Comida</dt><dd>100</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+
+    <section id="mudancas" class="section" aria-labelledby="mudancas-titulo">
+      <p class="eyebrow">O que mudou</p>
+      <h2 id="mudancas-titulo">Trabalho, estoque e construção</h2>
+      <p class="section-intro">A posição do celeiro, a distribuição do trabalho e o estoque de comida afetam o ritmo da vila.</p>
+      <div class="changes">
+        <article class="card">
+          <img class="tile-icon" src="/spritesheets/village/villager.svg" alt="">
+          <h3>Coleta e currais</h3>
+          <p>Aldeões iniciais são lentos. Pedra e ouro reduzem a velocidade na volta, e um aldeão totalmente melhorado leva até seis unidades pesadas por viagem.</p>
+          <p>Escolha a espécie e designe um aldeão ao curral. Ele coleta automaticamente. Com dois animais, espaço e comida, o curral pode reproduzir o rebanho.</p>
+        </article>
+        <article class="card">
+          <img class="tile-icon" src="/spritesheets/village/cabin.svg" alt="">
+          <h3>Comida das casas</h3>
+          <p>Além dos materiais, construir ou melhorar uma casa exige comida. Cada casa pronta também consome comida a cada 10 minutos de jogo.</p>
+          <ul class="house-food" aria-label="Comida para construir ou melhorar e consumo por intervalo">
+            <li><span>Palha · N1</span><strong>100 · 10 / 10 min</strong></li>
+            <li><span>Madeira · N2</span><strong>500 · 50 / 10 min</strong></li>
+            <li><span>Pedra · N3</span><strong>2.500 · 250 / 10 min</strong></li>
+          </ul>
+        </article>
+        <article class="card">
+          <img class="tile-icon" src="/spritesheets/village/barn.svg" alt="">
+          <h3>Produção e controles</h3>
+          <p>Na ferraria e na tecelagem, use a barra para escolher até 20 lotes. O celeiro exibe armas, roupas e outros itens produzidos junto com o estoque.</p>
+          <p>No celular, arraste o mapa, faça pinça para aproximar e use dois toques para marcar um muro. A barra inferior dá acesso a construção, tarefas, estoque e vila.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="save" class="section" aria-labelledby="save-titulo">
+      <p class="eyebrow">Progresso persistente</p>
+      <h2 id="save-titulo">Onde a vila é salva</h2>
+      <p class="section-intro">Nesta instalação, o MariaDB do XAMPP guarda o mundo no banco <code>rookland</code>, tabela <code>world_saves</code>. Estoques, ordens e melhorias são salvos automaticamente a cada cinco segundos.</p>
+      <details>
+        <summary>O jogo avança com a aba fechada?</summary>
+        <p>Sim, enquanto o servidor do RookLand estiver ligado e a vila estiver despausada. Ao desligar o servidor do jogo, o tempo para. Recuperar a produção desse período ainda é uma etapa futura.</p>
+      </details>
+      <details>
+        <summary>O que aconteceu com o save antigo?</summary>
+        <p>O progresso foi importado para o banco. O arquivo <code>server/data/world.json</code> foi preservado como cópia da migração. Para jogar com o save atual, mantenha o serviço MySQL do XAMPP ligado ao executar o <code>iniciar.bat</code>.</p>
+      </details>
+      <details>
+        <summary>O que vem depois?</summary>
+        <p>O plano inclui preços variáveis e encomendas, satisfação dos aldeões e missões solo para as tropas. Exploração de outras ilhas e PvP por aceitação mútua ficam para depois da campanha solo.</p>
+      </details>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>RookLand · Guia da vila</span>
+    <a href="/crops_farm">Voltar ao jogo ↑</a>
+  </footer>
+</body>
+</html>

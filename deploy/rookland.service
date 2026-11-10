@@ -1,0 +1,26 @@
+[Unit]
+Description=RookLand game server
+After=network.target
+
+[Service]
+Type=simple
+User=rookland
+Group=rookland
+WorkingDirectory=/opt/rookland
+Environment=NODE_ENV=production
+Environment=SERVER_HOST=127.0.0.1
+Environment=SERVER_PORT=3001
+Environment=DATA_DIR=/var/lib/rookland
+EnvironmentFile=-/opt/rookland/.env
+ExecStart=/usr/bin/node /opt/rookland/server/dist/index.mjs
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/rookland
+
+[Install]
+WantedBy=multi-user.target

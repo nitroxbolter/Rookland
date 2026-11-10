@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "baseUrl": "..",
+    "paths": {
+      "@/engine/*": ["shared/src/engine/*"],
+      "@/constants/*": ["shared/src/constants/*"],
+      "@/utils/*": ["shared/src/utils/*"]
+    }
+  },
+  "include": ["src", "../shared/protocol.ts"]
+}

@@ -1,0 +1,16 @@
+# Opcional: inclua este arquivo no httpd.conf do XAMPP após ajustar os caminhos.
+# Habilite mod_proxy, mod_proxy_http e mod_headers no httpd.conf.
+# O backend continua sendo Node.js; PHP/MySQL não são necessários.
+<VirtualHost 127.0.0.1:80>
+    ServerName rookland.local
+    DocumentRoot "D:/Usuario/Desktop/RookLand/web/dist"
+
+    ProxyPass "/api/" "http://127.0.0.1:3001/api/" timeout=3600
+    ProxyPassReverse "/api/" "http://127.0.0.1:3001/api/"
+
+    <Directory "D:/Usuario/Desktop/RookLand/web/dist">
+        Require local
+        AllowOverride None
+        FallbackResource /index.html
+    </Directory>
+</VirtualHost>
