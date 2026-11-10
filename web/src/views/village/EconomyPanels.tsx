@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   ArrowUp,
   Check,
@@ -35,6 +35,7 @@ import type {
   Resources,
   SeedKind,
   VillageState,
+  ProvisionPolicy,
 } from "../../../../shared/village/types"
 import {
   HOUSE_CAPACITIES,
@@ -61,12 +62,13 @@ import {
   upkeepCost,
   productStorageCapacities,
   UPKEEP_PER_ANIMAL,
-  UPKEEP_PER_SOLDIER,
-  UPKEEP_PER_VILLAGER,
   FINANCE_INTERVAL,
+  PAYROLL_INTERVAL,
   TAX_RATES,
-  CIVILIAN_WAGE,
-  MILITARY_WAGE,
+  PROVISION_LIMITS,
+  DEFAULT_PROVISIONS,
+  hourlyProvisionCost,
+  soldierDamage,
 } from "../../../../shared/village/config"
 import { sendCommand } from "@/services/gameClient"
 import { commerceGoals, ERA_NAMES, townLevel, unlockReason, villageEra } from "../../../../shared/village/progression"
@@ -366,7 +368,7 @@ export function BarnManagement({
   )
 }
 
-type TownTab = "era" | "workers" | "agriculture" | "market" | "seeds" | "animals" | "society"
+type TownTab = "era" | "workers" | "agriculture" | "market" | "seeds" | "animals" | "economy" | "society"
 const TABS: { id: TownTab; label: string; icon: typeof Users }[] = [
   { id: "era", label: "Era", icon: Flag },
   { id: "workers", label: "Aldeões", icon: Users },
@@ -374,6 +376,7 @@ const TABS: { id: TownTab; label: string; icon: typeof Users }[] = [
   { id: "market", label: "Mercado", icon: Coins },
   { id: "seeds", label: "Sementes", icon: Sprout },
   { id: "animals", label: "Animais", icon: PawPrint },
+  { id: "economy", label: "Economia", icon: Coins },
   { id: "society", label: "Cidade", icon: Users },
 ]
 
@@ -408,8 +411,6 @@ export function TownCenterMenu({
     (item) => item.kind === "research" && item.research === research,
   )
   const villagers = village.units.filter((u) => u.kind === "villager")
-  const civilians = village.units.filter((u) => u.kind !== "soldier" && u.kind !== "archer").length
-  const soldiers = village.units.filter((u) => u.kind === "soldier" || u.kind === "archer").length
   const animals = village.buildings.reduce((total, building) => total + (building.ranch?.animals.length ?? 0), 0)
   const houseUpkeep = village.buildings
     .filter((building) => building.kind === "house" && !building.construction)
@@ -464,7 +465,7 @@ export function TownCenterMenu({
             <span title="População"><Users size={16} aria-hidden="true" /><strong>{village.units.length}/{populationCapacity(village)}</strong></span>
             <span title="Consumo de comida"><Wheat size={16} aria-hidden="true" />{upkeepCost(village)} / 10 min</span>
           </summary>
-          <p>Aldeões e explorador {civilians * UPKEEP_PER_VILLAGER} · soldados {soldiers * UPKEEP_PER_SOLDIER} · animais {animals * UPKEEP_PER_ANIMAL} · casas {houseUpkeep}. Próxima refeição em {Math.ceil((UPKEEP_INTERVAL - village.economy.upkeepElapsed) / 60)} min.</p>
+          <p>Manutenção: animais {animals * UPKEEP_PER_ANIMAL} · casas {houseUpkeep}. Salários e rações das unidades são cobrados a cada hora na aba Economia. Próxima manutenção em {Math.ceil((UPKEEP_INTERVAL - village.economy.upkeepElapsed) / 60)} min.</p>
         </details>
         <nav className="research-tabs" role="tablist" aria-label="Centro da vila">
           {TABS.filter((t) => !marketLocked || (t.id !== "market" && t.id !== "seeds")).map((t) => (
@@ -505,7 +506,9 @@ export function TownCenterMenu({
               </>
             ) : <p className="economy-caption">Centro urbano no nível máximo.</p>}
           </div>
-        ) : tab === "society" ? (
+        ) : tab === "economy" ? (
+            <EconomyManagementPanel village={village} />
+          ) : tab === "society" ? (
             <SocietyPanel village={village} />
           ) : tab === "market" ? (
             <MarketPanel village={village} />
@@ -763,13 +766,60 @@ function MarketPanel({ village }: { village: VillageState }) {
 
 const TAX_LABELS = { exempt: "Isento", low: "Baixo", normal: "Normal", high: "Alto", abusive: "Abusivo" } as const
 
+function EconomyManagementPanel({ village }: { village: VillageState }) {
+  const city = village.city
+  const [draft, setDraft] = useState<ProvisionPolicy>(() => ({ ...city?.provisions ?? DEFAULT_PROVISIONS }))
+  useEffect(() => {
+    if (city?.provisions) setDraft({ ...city.provisions })
+  }, [city?.provisions.villagerGold, city?.provisions.villagerFood, city?.provisions.soldierGold, city?.provisions.soldierFood])
+  if (!city) return <p>Preparando a economia da cidade…</p>
+  const cost = hourlyProvisionCost(village, draft)
+  const changed = (Object.keys(draft) as (keyof ProvisionPolicy)[]).some((key) => draft[key] !== city.provisions[key])
+  const nextDamage = {
+    soldier: soldierDamage(village, "soldier", { gold: draft.soldierGold, food: draft.soldierFood }),
+    archer: soldierDamage(village, "archer", { gold: draft.soldierGold, food: draft.soldierFood }),
+  }
+  const sliders: { key: keyof ProvisionPolicy; label: string; unit: string; Icon: typeof Coins; step: number }[] = [
+    { key: "villagerGold", label: "Salário · aldeão", unit: "ouro", Icon: Coins, step: 5 },
+    { key: "villagerFood", label: "Ração · aldeão", unit: "comida", Icon: Wheat, step: 10 },
+    { key: "soldierGold", label: "Soldo · soldado", unit: "ouro", Icon: Coins, step: 5 },
+    { key: "soldierFood", label: "Ração · soldado", unit: "comida", Icon: Wheat, step: 10 },
+  ]
+  return <div className="economy-management-panel">
+    <div className="economy-budget-head">
+      <h2><Coins size={19} /> Orçamento por hora</h2>
+      <span><Clock3 size={15} /> {Math.ceil((PAYROLL_INTERVAL - city.payrollElapsed) / 60)} min</span>
+    </div>
+    <div className="economy-budget-totals">
+      <span><Users size={15} /> {cost.villagers} aldeões</span>
+      <span><Swords size={15} /> {cost.soldiers} soldados</span>
+      <span className={village.resources.gold < cost.gold ? "is-missing" : ""}><Coins size={15} /> {cost.gold} ouro/h</span>
+      <span className={village.resources.food < cost.food ? "is-missing" : ""}><Wheat size={15} /> {cost.food} comida/h</span>
+    </div>
+    <div className="economy-budget-grid">
+      {sliders.map(({ key, label, unit, Icon, step }) => <label key={key} className="economy-budget-card">
+        <span><Icon size={16} /><strong>{label}</strong><b>{draft[key]}</b></span>
+        <input type="range" min="0" max={PROVISION_LIMITS[key]} step={step} value={draft[key]}
+          aria-label={`${label}, ${draft[key]} ${unit} por unidade a cada hora`}
+          onChange={(event) => setDraft((current) => ({ ...current, [key]: Number(event.target.value) }))} />
+        <small>0 — {PROVISION_LIMITS[key]} {unit} por unidade/h</small>
+      </label>)}
+    </div>
+    <button type="button" className="primary-action" disabled={!changed}
+      onClick={() => void sendCommand({ type: "setProvisions", provisions: draft })}>Aplicar orçamento</button>
+    <div className="economy-damage">
+      <strong><Swords size={16} /> Dano por ataque</strong>
+      <span>Soldado <b>{soldierDamage(village, "soldier")}</b>{changed && <small> → {nextDamage.soldier} após pagamento</small>}</span>
+      <span>Arqueiro <b>{soldierDamage(village, "archer")}</b>{changed && <small> → {nextDamage.archer} após pagamento</small>}</span>
+    </div>
+    <p className="economy-caption">O novo orçamento entra em vigor no próximo pagamento. Se faltar ouro ou comida, as unidades recebem uma parte proporcional e o dano cai.</p>
+    <p className="economy-caption">Última hora: <Coins size={13} /> {city.lastPayroll.goldPaid}/{city.lastPayroll.goldDue} ouro · <Wheat size={13} /> {city.lastPayroll.foodServed}/{city.lastPayroll.foodDue} comida.</p>
+  </div>
+}
+
 function SocietyPanel({ village }: { village: VillageState }) {
   const city = village.city
   if (!city) return <p>Preparando a economia da cidade…</p>
-  const civilians = village.units.filter((unit) => unit.kind === "villager").length
-  const military = village.units.filter((unit) => unit.kind === "soldier" || unit.kind === "archer").length
-  const wages = (townLevel(village) >= 2 ? civilians * CIVILIAN_WAGE : 0)
-  const soldierPay = military * MILITARY_WAGE
   const windowStart = village.economy.elapsed - 3600
   const flows = (Object.keys(RESOURCE_NAMES) as (keyof Resources)[]).map((resource) => {
     const entries = city.flows.filter((entry) => entry.resource === resource && entry.at > windowStart)
@@ -778,7 +828,7 @@ function SocietyPanel({ village }: { village: VillageState }) {
   })
   const causes = [
     village.economy.foodShortage ? "Comida insuficiente reduz satisfação e trabalho." : "Comida suficiente melhora a satisfação.",
-    city.unpaidCycles ? `Pagamento incompleto por ${city.unpaidCycles} ciclo(s). Venda excedentes no mercado.` : "Salários e soldos em dia.",
+    city.unpaidCycles ? `Pagamento ou ração incompleta por ${city.unpaidCycles} hora(s). Ajuste o orçamento na aba Economia.` : "Salários e rações em dia.",
     city.taxPolicy === "high" || city.taxPolicy === "abusive" ? "Impostos altos reduzem a satisfação." : "Impostos moderados preservam a confiança.",
   ]
   const taxLocked = village.economy.elapsed - city.lastTaxChangeAt < UPKEEP_INTERVAL
@@ -789,9 +839,8 @@ function SocietyPanel({ village }: { village: VillageState }) {
       <span><Users size={16} /> <strong>{Math.round(city.satisfaction)}</strong>/100 satisfação</span>
       <span><ShieldCheck size={16} /> <strong>{Math.round(city.trust)}</strong>/100 confiança</span>
     </div>
-    <p>Próximo ciclo financeiro em {Math.ceil((FINANCE_INTERVAL - city.financeElapsed) / 60)} min de jogo · salários {wages} · soldos {soldierPay} moedas.</p>
-    <p>Último ciclo: +{city.lastCycle.taxes} impostos · -{city.lastCycle.paid}/{city.lastCycle.wages + city.lastCycle.military} pagos.</p>
-    {city.treasury < wages + soldierPay && <p className="town-upgrade-reason">Faltam {wages + soldierPay - city.treasury} moedas para a próxima folha. Venda recursos no mercado.</p>}
+    <p>Próximo ciclo de impostos em {Math.ceil((FINANCE_INTERVAL - city.financeElapsed) / 60)} min de jogo · último recolhimento: +{city.lastCycle.taxes} moedas.</p>
+    <p>Salários usam ouro do estoque; compras no mercado usam moedas do tesouro.</p>
     <div className="city-tax-policies" aria-label="Política tributária">
       {(Object.keys(TAX_RATES) as (keyof typeof TAX_RATES)[]).map((policy) =>
         <button key={policy} type="button" aria-pressed={city.taxPolicy === policy}

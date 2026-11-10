@@ -45,6 +45,8 @@ import {
 import { villageStore } from "@/services/villageStore"
 import {
   productionRate,
+  gatherCarryCapacity,
+  soldierDamage,
   BUILDINGS,
   CROPS,
   NODE_RESOURCE,
@@ -151,13 +153,12 @@ function ResourceAmount({
 }
 
 function BuildCostSummary({ village, cost }: { village: VillageState; cost: Partial<Resources> }) {
-  const carry = 8 + village.research.workers * 2 + (village.toolLevel ?? 0) * 2
   let trips = 0
   const missing = Object.entries(cost).flatMap(([key, total]) => {
     const resource = key as Resource
     const amount = Math.max(0, total - village.resources[resource])
     if (!amount) return []
-    const perTrip = resource === "stone" || resource === "gold" ? Math.max(1, Math.floor(carry / 3)) : carry
+    const perTrip = gatherCarryCapacity(village, resource)
     trips += Math.ceil(amount / perTrip)
     return [`${amount} ${RESOURCE_NAMES[resource].toLowerCase()}`]
   })
@@ -1261,7 +1262,7 @@ function VillageScene({ village }: { village: VillageState }) {
               </p>
               {selectedUnit.health !== undefined && selectedUnit.maxHealth !== undefined && <p className="selection-description">Vida {Math.ceil(selectedUnit.health)}/{selectedUnit.maxHealth}</p>}
               {(selectedUnit.kind === "soldier" || selectedUnit.kind === "archer") && <p className="selection-description">
-                {selectedUnit.kind === "archer" ? "Ataque à distância · " : ""}Ataque {5 + (village.weaponLevel ?? 0) * 2} · Defesa {2 + (village.armorLevel ?? 0) * 2 + (selectedUnit.armored ? 4 : 0)} · armas nível {village.weaponLevel ?? 0}/4 · armaduras nível {village.armorLevel ?? 0}/4
+                {selectedUnit.kind === "archer" ? "Ataque à distância · " : ""}Dano {soldierDamage(village, selectedUnit.kind)} · Defesa {2 + (village.armorLevel ?? 0) * 2 + (selectedUnit.armored ? 4 : 0)} · armas nível {village.weaponLevel ?? 0}/4 · armaduras nível {village.armorLevel ?? 0}/4
               </p>}
               {selectedUnit.carrying && (
                 <div className="carrying-line">

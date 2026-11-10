@@ -42,12 +42,22 @@ export interface ProductionSample {
   amount: number
 }
 export type TaxPolicy = "exempt" | "low" | "normal" | "high" | "abusive"
+export interface ProvisionPolicy {
+  villagerGold: number
+  villagerFood: number
+  soldierGold: number
+  soldierFood: number
+}
 export interface CityEconomy {
   treasury: number
   taxPolicy: TaxPolicy
   satisfaction: number
   trust: number
   financeElapsed: number
+  payrollElapsed: number
+  provisions: ProvisionPolicy
+  activeSoldierProvision: { gold: number; food: number }
+  lastPayroll: { goldDue: number; goldPaid: number; foodDue: number; foodServed: number }
   unpaidCycles: number
   lastTaxChangeAt: number
   festivalAt: number
@@ -132,6 +142,8 @@ export interface Unit extends Point {
   path: Point[]
   work: number
   carrying: { resource: Resource; amount: number } | null
+  /** Resource already mined at the node, before a return trip begins. */
+  gathering?: { resource: Resource; amount: number }
   /** Loads set aside when a player gives a new order before delivery. */
   stowed?: Partial<Resources>
   wallQueue?: string[]
@@ -228,6 +240,7 @@ export type VillageCommand =
   | { type: "buyResource"; resource: Exclude<Resource, "gold">; amount: number }
   | { type: "buySeeds"; seed: SeedKind; amount: number }
   | { type: "setTaxPolicy"; policy: TaxPolicy }
+  | { type: "setProvisions"; provisions: ProvisionPolicy }
   | { type: "holdFestival" }
   | { type: "sellProduct"; item: CraftItem | AnimalProduct; amount: number }
   | { type: "mintGold"; amount: number }

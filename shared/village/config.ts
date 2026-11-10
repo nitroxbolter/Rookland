@@ -2,6 +2,7 @@ import type {
   BuildingKind,
   Crop,
   Resources,
+  Resource,
   VillageState,
   Point,
   Building,
@@ -9,18 +10,19 @@ import type {
   Unit,
   ResourceNode,
   AnimalProducts,
+  ProvisionPolicy,
 } from "./types"
 
 export const VILLAGE_SIZE = 80
 export const BARN_CAPACITIES: Record<number, Resources> = {
-  1: { wood: 500, stone: 300, food: 500, iron: 300, gold: 300 },
-  2: { wood: 1000, stone: 600, food: 1000, iron: 600, gold: 600 },
-  3: { wood: 2000, stone: 1200, food: 2000, iron: 1200, gold: 1200 },
-  4: { wood: 3500, stone: 2200, food: 3500, iron: 2200, gold: 2200 },
-  5: { wood: 5500, stone: 3500, food: 5500, iron: 3500, gold: 3500 },
-  6: { wood: 9000, stone: 6000, food: 9000, iron: 6000, gold: 6000 },
-  7: { wood: 15000, stone: 10000, food: 15000, iron: 10000, gold: 10000 },
-  8: { wood: 25000, stone: 17000, food: 25000, iron: 17000, gold: 17000 },
+  1: { wood: 500, stone: 300, food: 500, iron: 300, gold: 500 },
+  2: { wood: 1000, stone: 600, food: 1200, iron: 600, gold: 1200 },
+  3: { wood: 2000, stone: 1200, food: 2500, iron: 1200, gold: 3000 },
+  4: { wood: 3500, stone: 2200, food: 5000, iron: 2200, gold: 7500 },
+  5: { wood: 5500, stone: 3500, food: 9000, iron: 3500, gold: 18000 },
+  6: { wood: 9000, stone: 6000, food: 16000, iron: 6000, gold: 35000 },
+  7: { wood: 15000, stone: 10000, food: 30000, iron: 10000, gold: 65000 },
+  8: { wood: 25000, stone: 17000, food: 50000, iron: 17000, gold: 99900 },
 }
 export const BARN_PRODUCT_CAPACITIES: Record<number, AnimalProducts> = {
   1: { milk: 100, wool: 100, eggs: 100, feathers: 100 }, 2: { milk: 200, wool: 200, eggs: 200, feathers: 200 },
@@ -94,11 +96,14 @@ export const RECRUIT_COST = { food: 30 }
 export const RECRUIT_SECONDS = 45
 export const UPKEEP_INTERVAL = 600
 export const FINANCE_INTERVAL = 1800
+export const PAYROLL_INTERVAL = 3600
+export const DEFAULT_PROVISIONS: Readonly<ProvisionPolicy> = {
+  villagerGold: 20, villagerFood: 40, soldierGold: 20, soldierFood: 80,
+}
+export const PROVISION_LIMITS: Readonly<ProvisionPolicy> = {
+  villagerGold: 40, villagerFood: 80, soldierGold: 40, soldierFood: 120,
+}
 export const TAX_RATES = { exempt: 0, low: 0.05, normal: 0.10, high: 0.15, abusive: 0.20 } as const
-export const CIVILIAN_WAGE = 2
-export const MILITARY_WAGE = 4
-export const UPKEEP_PER_VILLAGER = 1
-export const UPKEEP_PER_SOLDIER = 5
 export const UPKEEP_PER_ANIMAL = 2
 export const PRODUCTION_WINDOW = 30
 export const FARM_PLANT_SECONDS = 8
@@ -325,6 +330,22 @@ export const NODE_RESOURCE = {
   gold: "gold",
   berryBush: "food",
 } as const
+export const GATHER_SECONDS_PER_ITEM: Readonly<Record<Resource, number>> = {
+  wood: 2, stone: 4, food: 2, iron: 4, gold: 4,
+}
+export const GATHER_CARRY_LIMITS: Readonly<Record<Resource, { initial: number; maximum: number }>> = {
+  wood: { initial: 8, maximum: 12 },
+  stone: { initial: 2, maximum: 7 },
+  food: { initial: 8, maximum: 15 },
+  iron: { initial: 8, maximum: 10 },
+  gold: { initial: 1, maximum: 6 },
+}
+export const gatherCarryCapacity = (s: VillageState, resource: Resource, unit?: Unit) => {
+  const limits = GATHER_CARRY_LIMITS[resource]
+  if (unit && unit.kind !== "villager") return limits.initial
+  const upgrades = Math.min(7, s.research.workers + (s.toolLevel ?? 0))
+  return limits.initial + Math.floor((limits.maximum - limits.initial) * upgrades / 7)
+}
 export const RESOURCE_NODE_AMOUNTS = { tree: 240, rock: 300, iron: 80, gold: 240, berryBush: 20 } as const
 export const TOWN_CENTER_STORAGE: Readonly<Resources> = { wood: 100, stone: 100, food: 0, iron: 0, gold: 100 }
 export const storageCapacities = (s: VillageState): Resources => {
@@ -366,7 +387,33 @@ export const workerEfficiency = (s: VillageState, u: Unit) => {
   if (u.kind !== "villager") return 1
   const satisfaction = s.city?.satisfaction ?? 60
   const morale = satisfaction >= 85 ? 1.1 : satisfaction >= 70 ? 1.05 : satisfaction < 20 ? 0.6 : satisfaction < 35 ? 0.75 : satisfaction < 50 ? 0.9 : 1
-  return morale * (s.economy.foodShortage ? 0.5 : 1)
+  const payrollFoodShortage = (s.city?.lastPayroll.foodDue ?? 0) > (s.city?.lastPayroll.foodServed ?? 0)
+  return morale * (s.economy.foodShortage || payrollFoodShortage ? 0.5 : 1)
+}
+export const hourlyProvisionCost = (s: VillageState, policy: ProvisionPolicy = s.city?.provisions ?? DEFAULT_PROVISIONS) => {
+  const villagers = s.units.filter((unit) => unit.kind === "villager").length
+  const soldiers = s.units.filter((unit) => unit.kind === "soldier" || unit.kind === "archer").length
+  return {
+    villagers, soldiers,
+    gold: villagers * policy.villagerGold + soldiers * policy.soldierGold,
+    food: villagers * policy.villagerFood + soldiers * policy.soldierFood,
+  }
+}
+export const soldierDamage = (
+  s: VillageState,
+  kind: "soldier" | "archer",
+  provision = s.city?.activeSoldierProvision ?? { gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood },
+) => {
+  const base = (kind === "archer" ? 18 : 14) + (s.weaponLevel ?? 0) * 5
+  const multiplier = 0.55 + 0.25 * (provision.gold / DEFAULT_PROVISIONS.soldierGold) +
+    0.2 * (provision.food / DEFAULT_PROVISIONS.soldierFood)
+  return Math.max(1, Math.round(base * multiplier))
+}
+export const towerArcherDamage = (s: VillageState, towerLevel: number) => {
+  const provision = s.city?.activeSoldierProvision ?? { gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood }
+  const multiplier = 0.55 + 0.25 * (provision.gold / DEFAULT_PROVISIONS.soldierGold) +
+    0.2 * (provision.food / DEFAULT_PROVISIONS.soldierFood)
+  return Math.max(1, Math.round((9 + towerLevel * 4 + (s.weaponLevel ?? 0) * 3) * multiplier))
 }
 export const workerSpeed = (s: VillageState, u: Unit) =>
   (u.kind === "villager" ? 1.25 : 2) *
@@ -415,8 +462,6 @@ export const productionRate = (
     .reduce((n, p) => n + p.amount, 0) /
   Math.max(1, Math.min(PRODUCTION_WINDOW, s.economy.elapsed))
 export const upkeepCost = (s: VillageState) =>
-  s.units.filter((u) => u.kind !== "soldier" && u.kind !== "archer").length * UPKEEP_PER_VILLAGER +
-  s.units.filter((u) => u.kind === "soldier" || u.kind === "archer").length * UPKEEP_PER_SOLDIER +
   s.buildings.filter((building) => building.kind === "house" && !building.construction)
     .reduce((total, house) => total + HOUSE_UPKEEP_PER_LEVEL[house.level as 1 | 2 | 3], 0) +
   s.buildings.reduce((sum, b) => sum + (b.ranch?.animals.length ?? 0), 0) * UPKEEP_PER_ANIMAL

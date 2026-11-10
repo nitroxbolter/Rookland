@@ -3035,3 +3035,32 @@
   .resource-bar .resource-item strong { font-size: 11px; }
   .village-quick-actions button { font-size: 9px; }
 }
+
+.economy-management-panel { display: grid; gap: 9px; }
+.economy-management-panel h2, .economy-management-panel p { margin: 0; }
+.economy-budget-head, .economy-budget-head h2, .economy-budget-head > span,
+.economy-budget-totals span, .economy-budget-card > span, .economy-damage > strong {
+  display: flex; align-items: center; gap: 5px;
+}
+.economy-budget-head { justify-content: space-between; flex-wrap: wrap; }
+.economy-budget-head h2 { font-size: 16px; color: #ffe1a5; }
+.economy-budget-head > span { color: #e9cca1; font-size: 11px; }
+.economy-budget-totals { display: flex; flex-wrap: wrap; gap: 5px; }
+.economy-budget-totals span { padding: 5px 7px; border: 1px solid #a6804880; border-radius: 7px; background: #332719; font-size: 11px; }
+.economy-budget-totals .is-missing { color: #ff8b80; border-color: #cb6b5d; }
+.economy-budget-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.economy-budget-card { display: grid; gap: 5px; padding: 8px; border: 1px solid #9d7d4c80; border-radius: 9px; background: #362b1e; }
+.economy-budget-card > span { min-width: 0; font-size: 11px; }
+.economy-budget-card > span strong { flex: 1; min-width: 0; }
+.economy-budget-card > span b { color: #ffdc92; font-size: 15px; font-variant-numeric: tabular-nums; }
+.economy-budget-card input { width: 100%; min-height: 32px; margin: 0; accent-color: #ebbd70; cursor: pointer; }
+.economy-budget-card small { color: #cab893; font-size: 10px; }
+.economy-damage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; }
+.economy-damage > strong { grid-column: 1 / -1; color: #ffe1a5; }
+.economy-damage > span { padding: 7px 9px; border: 1px solid #a6804880; border-radius: 8px; background: #382919; }
+.economy-damage b { color: #ffdc92; }
+.economy-damage small { color: #cce2ab; }
+.economy-management-panel .economy-caption { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; font-size: 11px; }
+@media (max-width: 390px) {
+  .economy-budget-grid { grid-template-columns: 1fr; }
+}
