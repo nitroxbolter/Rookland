@@ -18,3 +18,5 @@ Fonte: [proposta de design](PROPOSTA_ECONOMIA_SOCIEDADE_EXERCITO.md). Este arqui
 As cadeias de serraria, pedreiro, fundição, padaria, curtume e boticário exigem novas estruturas, sprites, estoques e receitas com usos claros. Depois vêm equipamento por tipo de tropa, arsenal e reparos; saúde, curandeiro e doenças; contratos de caravana e preços variáveis; expedições. PvP entre jogadores requer primeiro contas, propriedade de cidade e inventários separados.
 
 O balanceamento de salários, impostos, rendimento e capacidade de mercado usa valores iniciais da proposta. Deve ser ajustado com partidas curtas, longas e offline antes de ampliar a quantidade de recursos.
+
+A checagem de tipos e os cenários dirigidos de migração, comércio, folha, treinamento e desmobilização passaram. A suíte histórica completa ainda contém cenários de versões anteriores do mapa, do celeiro inicial e do mercado baseado em ouro físico; ela precisa ser atualizada para as regras atuais antes de servir como critério geral de regressão.

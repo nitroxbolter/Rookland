@@ -26,6 +26,8 @@ Fazendas e celeiros podem ser destruídos; somente o centro urbano pode ser real
 A agricultura tem plantio, crescimento e colheita; o Mercado troca excedentes por moedas do tesouro. Ouro minerado continua sendo material para construções e oficinas.
 Consulte o [guia da vila](docs/VILA.md) e o [guia completo do jogo](docs/GUIA_COMPLETO_DO_JOGO.md)
 para estruturas, níveis, produção, animais, itens e estado do PvP.
+Veja a [proposta de economia e sociedade](docs/PROPOSTA_ECONOMIA_SOCIEDADE_EXERCITO.md)
+e o [estado da implementação](docs/IMPLEMENTACAO_DA_PROPOSTA.md).
 
 O jogo roda no backend e continua com o navegador fechado. O navegador desenha o mapa e envia ações. Mundo e inventário são compartilhados; ainda não existem contas individuais.
 
