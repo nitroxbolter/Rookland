@@ -27,6 +27,7 @@ import {
   Home,
   Droplets,
   Hammer,
+  MoreHorizontal,
   Shield,
   PawPrint,
 } from "lucide-react"
@@ -54,7 +55,7 @@ import {
   UPGRADE_COSTS,
   VILLAGE_SIZE,
 } from "../../../../shared/village/config"
-import { ERA_NAMES, unlockReason, villageEra } from "../../../../shared/village/progression"
+import { unlockReason } from "../../../../shared/village/progression"
 import { placementError, treePlacementError, walkable, wallLineCells } from "../../../../shared/village/simulation"
 import { createVillageTerrain } from "../../../../shared/village/terrain"
 import type {
@@ -378,6 +379,7 @@ function VillageScene({ village }: { village: VillageState }) {
   const touchPointer = useRef(false)
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [tasksOpen, setTasksOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
   const [grid, setGrid] = useState(false)
   const [townMenu, setTownMenu] = useState(false)
   const [notice, setNotice] = useState("")
@@ -397,6 +399,7 @@ function VillageScene({ village }: { village: VillageState }) {
         setTownMenu(false)
         setCatalogOpen(false)
         setTasksOpen(false)
+        setMoreOpen(false)
       }
       if (e.key.toLowerCase() === "g") setGrid((g) => !g)
     }
@@ -720,13 +723,13 @@ function VillageScene({ village }: { village: VillageState }) {
     !unlockReason(village, { kind: "crop", value }) && village.seeds[value] > 0,
   )
   const wellLocked = unlockReason(village, { kind: "building", value: "well" })
-  const era = villageEra(village)
   function resetPanels() {
     setBuild(null)
     setWallStart(null)
     wallStartRef.current = null
     setCatalogOpen(false)
     setTasksOpen(false)
+    setMoreOpen(false)
     setTownMenu(false)
     setSelection(null)
     setSelectedMilitaryIds([])
@@ -959,10 +962,17 @@ function VillageScene({ village }: { village: VillageState }) {
           {visibleResources.map((r) => {
             const Icon = ICONS[r]
             return (
-              <div
+              <button
+                type="button"
                 key={r}
-                className={`resource-item resource-${r}`}
+                className={`resource-item resource-${r} ${capacity[r] > 0 && village.resources[r] >= capacity[r] ? "is-full" : ""}`}
                 title={capacity[r] > 0 ? `${RESOURCE_NAMES[r]}: ${village.resources[r]} de ${capacity[r]}` : `${RESOURCE_NAMES[r]} · construa um celeiro para receber entregas`}
+                aria-label={`${RESOURCE_NAMES[r]}: ${village.resources[r]} de ${capacity[r]}. Abrir estoque`}
+                onClick={() => {
+                  resetPanels()
+                  if (readyBarn) setSelection({ kind: "building", id: readyBarn.id })
+                  else setNotice("Construa um celeiro para receber comida e ampliar o estoque.")
+                }}
               >
                 <span className="resource-icon">
                   <Icon size={20} />
@@ -987,7 +997,7 @@ function VillageScene({ village }: { village: VillageState }) {
                     </em>
                   )}
                 </span>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -1022,7 +1032,7 @@ function VillageScene({ village }: { village: VillageState }) {
       </header>
 
       <nav className="village-quick-actions" aria-label="Ações da vila">
-        <button onClick={() => {
+        <button className={catalogOpen || build ? "active" : ""} aria-label="Abrir construções" aria-pressed={catalogOpen || !!build} onClick={() => {
           const builder = selectedUnit?.kind === "villager" ? selectedUnit :
             village.units.find((unit) => unit.kind === "villager" && unit.job.kind === "idle")
           resetPanels()
@@ -1033,17 +1043,21 @@ function VillageScene({ village }: { village: VillageState }) {
             setTasksOpen(true)
             setNotice("Escolha um aldeão para construir.")
           }
-        }}><Hammer size={17} /> Construir</button>
-        <button onClick={() => { resetPanels(); setTasksOpen(!tasksOpen) }}><Users size={17} /> Tarefas</button>
-        <button onClick={() => {
+        }}><Hammer size={21} /><span>Construir</span></button>
+        <button className={tasksOpen ? "active" : ""} aria-label="Abrir tarefas" aria-pressed={tasksOpen} onClick={() => { const open = !tasksOpen; resetPanels(); setTasksOpen(open) }}><Users size={21} /><span>Tarefas</span></button>
+        <button className={selectedBuilding?.kind === "barn" ? "active" : ""} aria-label="Abrir estoque" onClick={() => {
           resetPanels()
           if (readyBarn) setSelection({ kind: "building", id: readyBarn.id })
           else setNotice("Construa um celeiro para receber comida e ampliar o estoque.")
-        }}><Warehouse size={17} /> Estoque</button>
-        <button onClick={() => { resetPanels(); setTownMenu(!townMenu) }}><Home size={17} /> {ERA_NAMES[era]}</button>
-        <Link to="/map_editor/vila" title="Editar mapa da vila"><MapIcon size={17} /> Editar mapa</Link>
-        <a href="/guia.html"><BookOpen size={17} /> Guia</a>
+        }}><Warehouse size={21} /><span>Estoque</span></button>
+        <button className={townMenu ? "active" : ""} aria-label="Abrir centro da vila" aria-pressed={townMenu} onClick={() => { const open = !townMenu; resetPanels(); setTownMenu(open) }}><Home size={21} /><span>Cidade</span></button>
+        <button className={moreOpen ? "active" : ""} aria-label="Mais opções" aria-expanded={moreOpen} aria-controls="village-more-menu" onClick={() => { const open = !moreOpen; resetPanels(); setMoreOpen(open) }}><MoreHorizontal size={21} /><span>Mais</span></button>
       </nav>
+      {moreOpen && <div id="village-more-menu" className="village-more-menu" aria-label="Mais opções">
+        <Link to="/" onClick={() => setMoreOpen(false)}><TreePine size={20} /><span>Início</span></Link>
+        <Link to="/map_editor/vila" onClick={() => setMoreOpen(false)}><MapIcon size={20} /><span>Editar mapa</span></Link>
+        <a href="/guia.html" onClick={() => setMoreOpen(false)}><BookOpen size={20} /><span>Guia</span></a>
+      </div>}
       {tasksOpen && <section className="selection-panel village-tasks" aria-label="Tarefas dos aldeões">
         <header><strong>Tarefas</strong><button onClick={() => setTasksOpen(false)} aria-label="Fechar tarefas"><X size={18} /></button></header>
         {village.units.filter((unit) => unit.kind !== "soldier" && unit.kind !== "archer").map((unit) => (
@@ -1449,11 +1463,12 @@ function VillageScene({ village }: { village: VillageState }) {
         </div>
       )}
       {full && (
-        <div className="storage-alert" role="status">
+        <div className="storage-alert" role="status" aria-label={`Estoque cheio: ${fullResources.map((r) => RESOURCE_NAMES[r]).join(", ")}`}>
           <Warehouse size={15} />
-          {readyBarn
+          <span className="storage-alert-short">Estoque cheio</span>
+          <span className="storage-alert-detail">{readyBarn
             ? `Limite atingido: ${fullResources.map((r) => RESOURCE_NAMES[r]).join(", ")}. Evolua ou construa mais celeiros.`
-            : `Limite atingido: ${fullResources.map((r) => RESOURCE_NAMES[r]).join(", ")}. Construa um celeiro para ampliar o estoque.`}
+            : `Limite atingido: ${fullResources.map((r) => RESOURCE_NAMES[r]).join(", ")}. Construa um celeiro para ampliar o estoque.`}</span>
         </div>
       )}
       {townMenu && (
