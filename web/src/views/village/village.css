@@ -38,13 +38,12 @@
 .world-object > * {
   pointer-events: none;
 }
-.world-object .node-art,
-.world-object .building-art {
+.world-object .node-art {
   pointer-events: auto;
 }
-/* The tower's roof rises above its 2×2 base. Keep that overhang visual only,
-   so units behind it remain clickable; the base button still selects the tower. */
-.world-object.tower .building-art {
+/* All building art can extend outside its map footprint. Only the footprint
+   receives clicks, so characters behind roofs and walls stay selectable. */
+.world-object .building-art {
   pointer-events: none;
 }
 .world-object:hover .node-art,
