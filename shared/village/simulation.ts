@@ -1330,14 +1330,12 @@ function updateCombat(s: VillageState, dt: number) {
   if (!creatures.length && s.economy.elapsed >= s.creatureSpawnAt!) {
     const corners = [{ x: 2, y: 2 }, { x: s.width - 3, y: 2 }, { x: 2, y: s.height - 3 }, { x: s.width - 3, y: s.height - 3 }]
     const firstCorner = Math.floor(s.economy.elapsed / 300) % corners.length
-    let spawn: Point | undefined
-    for (let offset = 0; offset < corners.length && !spawn; offset++) {
-      const center = corners[(firstCorner + offset) % corners.length]
-      for (let radius = 0; radius <= 8 && !spawn; radius++)
-        for (let y = Math.max(1, center.y - radius); y <= Math.min(s.height - 2, center.y + radius) && !spawn; y++)
-          for (let x = Math.max(1, center.x - radius); x <= Math.min(s.width - 2, center.x + radius); x++)
-            if (Math.abs(x - center.x) + Math.abs(y - center.y) === radius && walkable(s, { x, y }) && !s.units.some((unit) => key(cell(unit)) === key({ x, y }))) { spawn = { x, y }; break }
-    }
+    const corner = corners[firstCorner]
+    const candidates: Point[] = []
+    for (let y = 1; y < s.height - 1; y++)
+      for (let x = 1; x < s.width - 1; x++) candidates.push({ x, y })
+    candidates.sort((a, b) => distance(a, corner) - distance(b, corner))
+    const spawn = candidates.find((point) => walkable(s, point) && !s.units.some((unit) => key(cell(unit)) === key(point)))
     if (spawn) {
       const kind = Math.floor(s.economy.elapsed / 300) % 2 === 0 ? "wolf" : "bear"
       const maxHealth = kind === "wolf" ? 65 : 150
@@ -1375,13 +1373,18 @@ function updateCombat(s: VillageState, dt: number) {
   for (const tower of s.buildings.filter((building) => building.kind === "tower" && !building.construction)) {
     const archers = s.units.filter((unit) => unit.kind === "archer" && unit.job.kind === "garrison" && unit.job.targetId === tower.id)
     if (!archers.length) continue
-    const target = creatures.filter((creature) => creature.hostileTo && creature.health > 0 && distance(tower, creature) <= 7)
+    const target = creatures.filter((creature) => creature.health > 0 && distance({ x: tower.x + tower.width / 2, y: tower.y + tower.height / 2 }, creature) <= 7)
       .sort((a, b) => distance(tower, a) - distance(tower, b))[0]
     if (!target) continue
     tower.attackProgress = (tower.attackProgress ?? 0) + dt
     while (tower.attackProgress >= 1) {
       tower.attackProgress -= 1
       target.health -= archers.length * (9 + tower.level * 4 + (s.weaponLevel ?? 0) * 3)
+      if (!target.hostileTo) {
+        const defender = s.units.filter((unit) => unit.job.kind !== "garrison" && distance(unit, target) <= 7)
+          .sort((a, b) => distance(a, target) - distance(b, target))[0]
+        if (defender) target.hostileTo = defender.id
+      }
     }
   }
 
@@ -1395,7 +1398,7 @@ function updateCombat(s: VillageState, dt: number) {
         creature.attackProgress -= 2
         const armorReduction = (target.armored ? 3 : 0) + (s.armorLevel ?? 0) * 2
         const damage = Math.max(1, (creature.kind === "wolf" ? 7 : 13) - armorReduction)
-        target.health = Math.max(0, (target.health ?? (target.kind === "villager" ? 35 : 80)) - damage)
+        target.health = Math.max(0, (target.health ?? (target.kind === "villager" ? 35 : target.kind === "archer" ? 55 : 110)) - damage)
       }
     } else {
       creature.attackProgress = 0
@@ -1562,8 +1565,8 @@ function updateStep(s: VillageState, dt: number) {
         carrying: null,
         armored: false,
         facing: "right",
-        health: production.item === "archer" ? 55 : 80,
-        maxHealth: production.item === "archer" ? 55 : 80,
+        health: production.item === "archer" ? 55 : 110,
+        maxHealth: production.item === "archer" ? 55 : 110,
       })
     } else {
       s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
@@ -2165,7 +2168,11 @@ export function migrateVillage(input: VillageState): VillageState {
     current.creatureSpawnAt ??= current.economy.elapsed
     if (firstSpawnNotYetHappened) current.creatureSpawnAt = current.economy.elapsed
     for (const unit of current.units) {
-      const health = unit.kind === "hero" ? 100 : unit.kind === "villager" ? 35 : unit.kind === "archer" ? 55 : 80
+      const health = unit.kind === "hero" ? 100 : unit.kind === "villager" ? 35 : unit.kind === "archer" ? 55 : 110
+      if (unit.kind === "soldier" && unit.maxHealth === 80) {
+        unit.health = Math.min(110, (unit.health ?? 80) + 30)
+        unit.maxHealth = 110
+      }
       unit.maxHealth ??= health
       unit.health ??= unit.maxHealth
       unit.health = Math.min(unit.maxHealth, unit.health)

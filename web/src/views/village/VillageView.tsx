@@ -827,7 +827,7 @@ function VillageScene({ village }: { village: VillageState }) {
             }}>
             <span className={`creature-sprite ${creature.kind} ${creature.hostileTo ? "is-animated" : ""}`}
               style={{ backgroundImage: `url(/spritesheets/village/${creature.kind}-walk.png)` }} />
-            <span className={`health-bar ${(creature.health / creature.maxHealth) < 0.3 ? "is-low" : ""}`}><i style={{ width: `${Math.max(0, creature.health / creature.maxHealth * 100)}%` }} /></span>
+            {(creature.hostileTo || village.units.some((unit) => unit.job.kind === "attackCreature" && unit.job.targetId === creature.id) || creature.health < creature.maxHealth) && <span className={`health-bar ${(creature.health / creature.maxHealth) < 0.3 ? "is-low" : ""}`}><i style={{ width: `${Math.max(0, creature.health / creature.maxHealth * 100)}%` }} /></span>}
           </button>
         ))}
         {village.units.filter((unit) => unit.job.kind !== "garrison").map((u) => (
@@ -850,7 +850,7 @@ function VillageScene({ village }: { village: VillageState }) {
             }}
           >
             <UnitArt unit={u} village={village} selected={selectedUnit?.id === u.id} />
-            {u.health !== undefined && u.maxHealth !== undefined && <span className={`health-bar ${(u.health / u.maxHealth) < 0.3 ? "is-low" : ""}`}><i style={{ width: `${Math.max(0, u.health / u.maxHealth * 100)}%` }} /></span>}
+            {u.health !== undefined && u.maxHealth !== undefined && (u.job.kind === "attackCreature" || village.creatures?.some((creature) => creature.hostileTo === u.id) || u.health < u.maxHealth) && <span className={`health-bar ${(u.health / u.maxHealth) < 0.3 ? "is-low" : ""}`}><i style={{ width: `${Math.max(0, u.health / u.maxHealth * 100)}%` }} /></span>}
           </button>
         ))}
         {build === "wall" && wallCells.map((point) => (

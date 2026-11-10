@@ -63,11 +63,10 @@ export function IndustryPanel({ village, building, selectedUnitId, onDestroyed }
 function TowerGarrison({ village, tower, selectedUnitId }: { village: VillageState; tower: Building; selectedUnitId?: string }) {
   const archers = village.units.filter((unit) => unit.kind === "archer" && unit.job.kind === "garrison" && unit.job.targetId === tower.id)
   const available = village.units.filter((unit) => unit.kind === "archer" && unit.job.kind !== "garrison")
-  const selected = available.find((unit) => unit.id === selectedUnitId)
+  available.sort((a, b) => Number(b.id === selectedUnitId) - Number(a.id === selectedUnitId))
   return <div className="tower-garrison">
     <strong>Arqueiros na torre · {archers.length}/{Math.min(4, tower.level)}</strong>
-    {selected && archers.length < Math.min(4, tower.level) && <button className="primary-action" onClick={() => void sendCommand({ type: "garrisonArcher", unitId: selected.id, towerId: tower.id })}>Guarnecer {selected.name}</button>}
-    {!selected && archers.length < Math.min(4, tower.level) && available[0] && <button className="primary-action" onClick={() => void sendCommand({ type: "garrisonArcher", unitId: available[0].id, towerId: tower.id })}>Guarnecer {available[0].name}</button>}
+    {archers.length < Math.min(4, tower.level) && available.map((archer) => <button className="primary-action" key={archer.id} onClick={() => void sendCommand({ type: "garrisonArcher", unitId: archer.id, towerId: tower.id })}><span>{archer.name}</span><small>Colocar na torre</small></button>)}
     {archers.map((archer) => <button key={archer.id} onClick={() => void sendCommand({ type: "ungarrisonArcher", unitId: archer.id })}><span>{archer.name}</span><small>Retirar da torre</small></button>)}
     {!available.length && !archers.length && <small>Treine arqueiros no quartel para defender a torre.</small>}
   </div>

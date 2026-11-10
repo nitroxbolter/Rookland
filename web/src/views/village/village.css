@@ -205,7 +205,9 @@
 .health-bar { position: absolute; z-index: 2000; left: 1px; right: 1px; bottom: -4px; height: 2px; border: 1px solid #263229; border-radius: 3px; background: #302c27; overflow: hidden; pointer-events: none; }
 .health-bar i { display: block; height: 100%; background: #a6cf61; }
 .health-bar.is-low i { background: #d95747; }
-.creature-object .health-bar { left: -2px; right: -2px; bottom: -7px; }
+.unit-object .health-bar { left: -3px; right: -3px; bottom: 34px; height: 3px; }
+.creature-object .health-bar { left: -4px; right: -4px; bottom: 31px; height: 3px; }
+.creature-object.bear .health-bar { bottom: 38px; }
 .tower-garrison { display: grid; gap: 5px; margin: 8px 0; }
 .tower-garrison button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .object-label {
