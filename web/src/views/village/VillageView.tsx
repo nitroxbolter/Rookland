@@ -74,7 +74,7 @@ import type {
 import { FarmManagement, BarnManagement, HouseManagement, WellManagement, TownCenterMenu } from "./EconomyPanels"
 import { IndustryPanel } from "./IndustryPanel"
 import { RanchPanel } from "./RanchPanel"
-import { buildingVisualScale } from "./buildingVisualScale"
+import { buildingVisualTransform } from "./buildingVisualScale"
 import { AtlasSprite } from "./sprites"
 import { NodeArt } from "./NodeArt"
 import "./village.css"
@@ -800,7 +800,7 @@ function VillageScene({ village }: { village: VillageState }) {
             }}
             onClick={(e) => buildingClick(e, b)}
           >
-            <div className="building-visual" style={{ transform: `scale(${buildingVisualScale(b.kind, b.width, b.height)})` }}>
+            <div className="building-visual" style={{ transform: buildingVisualTransform(b.kind, b.width, b.height) }}>
               <BuildingArt building={b} verticalWall={wallUsesVerticalSprite(b, village.buildings)} />
             </div>
             {selectedBuilding?.id === b.id && <BuildingProgressStatus village={village} building={b} />}
@@ -909,7 +909,7 @@ function VillageScene({ village }: { village: VillageState }) {
             className={`build-preview ${error ? "invalid" : "valid"}`}
             style={{ ...pointStyle(point), width: 16, height: 16 }}>
             <span className={`build-preview-cell ${footprintCellError(point) ? "blocked" : "free"}`} />
-            <div className="building-visual" style={{ transform: `scale(${buildingVisualScale("wall", 1, 1)})` }}>
+            <div className="building-visual" style={{ transform: buildingVisualTransform("wall", 1, 1) }}>
               <BuildingArt building={{ id: "preview", kind: "wall", ...point, width: 1, height: 1, level: 1, growth: 0 }} verticalWall={wallCells.length > 1 && wallCells[0].x === wallCells[1].x} />
             </div>
           </div>
@@ -930,7 +930,7 @@ function VillageScene({ village }: { village: VillageState }) {
             {build === "tree" ? (
               <Sprout className="sapling-preview" size={16} />
             ) : (
-              <div className="building-visual" style={{ transform: `scale(${buildingVisualScale(build, footprint.width, footprint.height)})` }}>
+              <div className="building-visual" style={{ transform: buildingVisualTransform(build, footprint.width, footprint.height) }}>
                 <BuildingArt
                   building={{
                     id: "preview",

@@ -15,3 +15,16 @@ export function buildingVisualScale(kind: BuildingKind, width: number, height: n
   if (kind === "gate" || kind === "tower") return 1
   return Math.min(1, (width * 16 - 2) / artWidth, (height * 16 - 2) / artHeight)
 }
+
+/** Sprite height is visual only; the building's map footprint stays unchanged. */
+export function buildingVisualTransform(kind: BuildingKind, width: number, height: number) {
+  const horizontal = buildingVisualScale(kind, width, height)
+  const rise: Partial<Record<BuildingKind, number>> = {
+    townCenter: 8, barn: 6, house: 8, well: 6,
+    blacksmith: 8, weaving: 8, barracks: 8, ranch: 8,
+  }
+  const extraHeight = rise[kind] ?? 0
+  if (!extraHeight) return `scale(${horizontal})`
+  const vertical = Math.max(horizontal, (height * 16 + extraHeight) / ART_BOUNDS[kind][1])
+  return `scale(${horizontal}, ${vertical})`
+}
