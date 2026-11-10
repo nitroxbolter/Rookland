@@ -253,7 +253,8 @@ function seedResourceRegions(s: VillageState, includeIron = true) {
       s.saplings.some((sapling) => key(sapling) === key(point)) ||
       s.units.some((unit) => key(cell(unit)) === key(point))) return
     occupied.add(key(point))
-    s.nodes.push({ id: region + "-" + x + "-" + y, kind, x, y, amount: DEPOSIT_AMOUNTS[kind] ?? 240, variant })
+    s.nodes.push({ id: region + "-" + x + "-" + y, kind, x, y,
+      amount: kind === "branch" ? 8 : RESOURCE_NODE_AMOUNTS[kind], variant })
   }
   const forests = [
     { x: 14, y: 40, rx: 11, ry: 27 },
@@ -1690,7 +1691,7 @@ function updateStep(s: VillageState, dt: number, online: boolean) {
       kind: "tree",
       x: sapling.x,
       y: sapling.y,
-      amount: 240,
+      amount: RESOURCE_NODE_AMOUNTS.tree,
       variant: Math.floor(sapling.startedAt / TREE_GROW_SECONDS) % 5,
     })
   s.saplings = s.saplings.filter(
@@ -2417,6 +2418,8 @@ export function migrateVillage(input: VillageState): VillageState {
       gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood,
     }
     current.city.lastPayroll ??= { goldDue: 0, goldPaid: 0, foodDue: 0, foodServed: 0 }
+    for (const node of current.nodes)
+      if (node.kind === "tree") node.amount = Math.min(node.amount, RESOURCE_NODE_AMOUNTS.tree)
     current.city.festivalAt ??= -FINANCE_INTERVAL
     current.city.tradeRevenue ??= 0
     const town = current.buildings.find((building) => building.kind === "townCenter")
@@ -2557,6 +2560,8 @@ function upgradeWorldV4(s: VillageState): VillageState {
     gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood,
   }
   s.city.lastPayroll ??= { goldDue: 0, goldPaid: 0, foodDue: 0, foodServed: 0 }
+  for (const node of s.nodes)
+    if (node.kind === "tree") node.amount = Math.min(node.amount, RESOURCE_NODE_AMOUNTS.tree)
   expandVillage(s)
   s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
   s.animalProducts ??= { milk: 0, wool: 0, eggs: 0, feathers: 0 }

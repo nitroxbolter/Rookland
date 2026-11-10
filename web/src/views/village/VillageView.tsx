@@ -50,6 +50,7 @@ import {
   BUILDINGS,
   CROPS,
   NODE_RESOURCE,
+  RESOURCE_NODE_AMOUNTS,
   RESOURCE_NAMES,
   storageCapacities,
   populationCapacity,
@@ -118,12 +119,8 @@ const NODE_NAMES = {
   berryBush: "Arbusto de frutas",
 }
 const NODE_MAX_AMOUNT: Record<ResourceNode["kind"], number> = {
-  tree: 240,
-  rock: 300,
+  ...RESOURCE_NODE_AMOUNTS,
   branch: 8,
-  iron: 80,
-  gold: 240,
-  berryBush: 20,
 }
 const pointStyle = (p: { x: number; y: number }): CSSProperties => ({
   left: p.x * 16,

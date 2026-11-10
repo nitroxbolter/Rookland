@@ -9,15 +9,15 @@ test("carga e tempo de extração variam por recurso", () => {
   const village = createVillage()
   village.creatureSpawnAt = 100_000
   const worker = village.units.find((unit) => unit.kind === "villager")
-  village.nodes = [{ id: "test-tree", kind: "tree", x: 15, y: 19, amount: 240, variant: 0 }]
+  village.nodes = [{ id: "test-tree", kind: "tree", x: 15, y: 19, amount: 80, variant: 0 }]
   worker.job = { kind: "gather", targetId: "test-tree" }
   worker.x = 15
   worker.y = 18
   worker.path = []
   updateVillage(village, 1.8)
-  assert.equal(village.nodes[0].amount, 240)
+  assert.equal(village.nodes[0].amount, 80)
   updateVillage(village, 0.2)
-  assert.equal(village.nodes[0].amount, 239)
+  assert.equal(village.nodes[0].amount, 79)
   assert.deepEqual(worker.gathering, { resource: "wood", amount: 1 })
   updateVillage(village, 2)
   assert.equal(worker.gathering.amount, 2)

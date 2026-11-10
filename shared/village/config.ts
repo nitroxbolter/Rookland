@@ -346,7 +346,7 @@ export const gatherCarryCapacity = (s: VillageState, resource: Resource, unit?: 
   const upgrades = Math.min(7, s.research.workers + (s.toolLevel ?? 0))
   return limits.initial + Math.floor((limits.maximum - limits.initial) * upgrades / 7)
 }
-export const RESOURCE_NODE_AMOUNTS = { tree: 240, rock: 300, iron: 80, gold: 240, berryBush: 20 } as const
+export const RESOURCE_NODE_AMOUNTS = { tree: 80, rock: 300, iron: 80, gold: 240, berryBush: 20 } as const
 export const TOWN_CENTER_STORAGE: Readonly<Resources> = { wood: 100, stone: 100, food: 0, iron: 0, gold: 100 }
 export const storageCapacities = (s: VillageState): Resources => {
   const limits: Resources = s.buildings.some((b) => b.kind === "townCenter" && !b.construction)
