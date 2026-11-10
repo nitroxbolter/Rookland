@@ -2831,3 +2831,13 @@
   .town-menu .town-center-art-preview { flex-basis: 45px; }
   .town-header-actions button { width: 40px; }
 }
+.city-economy-panel { display: grid; gap: 9px; }
+.city-economy-panel h2, .city-economy-panel p { margin: 0; }
+.city-economy-stats, .city-tax-policies, .city-flow-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.city-economy-stats span, .city-flow-list span { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid #b99b624d; border-radius: 8px; background: #291e14; }
+.city-tax-policies button { padding: 7px 9px; border: 1px solid #a68048; border-radius: 8px; background: #3d2b1c; }
+.city-tax-policies button[aria-pressed="true"] { background: #8a622f; color: #fff1ce; }
+.city-flow-list span { flex: 1 1 120px; justify-content: space-between; }
+.city-flow-list small { color: #bbd28e; }
+.city-market-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 6px; }
+.city-market-products button { min-height: 38px; padding: 7px; text-align: left; border: 1px solid #a68048; border-radius: 8px; background: #46301e; }

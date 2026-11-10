@@ -159,9 +159,11 @@ na venda:
 | Pedra | 10 | 3 |
 | Ferro | 10 | 5 |
 
-Ouro é a moeda recebida, não um item para vender por ele mesmo. A venda exige
-estoque suficiente e espaço no limite de ouro. Se não houver espaço ou saldo,
-a transação inteira é recusada, sem consumir recursos parcialmente.
+O ouro minerado é um material de construção e fabricação. Vendas rendem moedas
+para o tesouro, separadas do ouro físico. Produtos de oficinas e animais também
+podem ser vendidos, e o ouro minerado pode ser trocado por moedas. A caravana
+compra até 1.000 moedas de mercadorias por ciclo financeiro de 30 minutos.
+Se não houver estoque ou orçamento, a transação é recusada por inteiro.
 
 ## Centro da vila
 
@@ -246,8 +248,9 @@ comida e leite; ovelhas, comida e lã. Leite e lã têm limites independentes em
 cada celeiro, e a tecelagem consome lã para produzir panos.
 
 O centro urbano recruta aldeões em lotes. Ferraria e tecelagem produzem lotes de
-itens, e o quartel treina lotes de soldados. Os custos do lote inteiro são pagos
-ao iniciar, e cada unidade ou produto fica pronto ao fim do seu próprio tempo.
+itens, e o quartel transforma aldeões livres em soldados ou arqueiros. Os custos
+do lote inteiro são pagos ao iniciar, e cada unidade ou produto fica pronto ao
+fim do seu próprio tempo. Desmobilizar devolve o trabalhador e guarda o kit.
 As fazendas pagam a semente quando são colocadas e continuam replantando após
 cada colheita, mesmo que o estoque de sementes chegue a zero.
 

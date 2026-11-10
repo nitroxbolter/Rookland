@@ -23,7 +23,7 @@ O modo **RookLand** em `/crops_farm` começa com centro urbano, explorador, alde
 e fazenda de 2×2 para até quatro trabalhadores. Construa um celeiro para habilitar
 os estoques. O centro e os celeiros avançam até o nível 8.
 Fazendas e celeiros podem ser destruídos; somente o centro urbano pode ser realocado.
-A agricultura tem plantio, crescimento e colheita; o Mercado permite vender recursos por ouro.
+A agricultura tem plantio, crescimento e colheita; o Mercado troca excedentes por moedas do tesouro. Ouro minerado continua sendo material para construções e oficinas.
 Consulte o [guia da vila](docs/VILA.md) e o [guia completo do jogo](docs/GUIA_COMPLETO_DO_JOGO.md)
 para estruturas, níveis, produção, animais, itens e estado do PvP.
 

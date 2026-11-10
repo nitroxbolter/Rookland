@@ -93,6 +93,10 @@ export const MAX_FARM_WORKERS = 4
 export const RECRUIT_COST = { food: 30 }
 export const RECRUIT_SECONDS = 45
 export const UPKEEP_INTERVAL = 600
+export const FINANCE_INTERVAL = 1800
+export const TAX_RATES = { exempt: 0, low: 0.05, normal: 0.10, high: 0.15, abusive: 0.20 } as const
+export const CIVILIAN_WAGE = 2
+export const MILITARY_WAGE = 4
 export const UPKEEP_PER_VILLAGER = 1
 export const UPKEEP_PER_SOLDIER = 5
 export const UPKEEP_PER_ANIMAL = 2
@@ -178,6 +182,12 @@ export const MARKET_BUY_RATES = {
   wood: { amount: 10, gold: 4 },
   stone: { amount: 10, gold: 6 },
   iron: { amount: 10, gold: 10 },
+} as const
+export const MARKET_CYCLE_BUDGET = 1000
+export const MARKET_PRODUCT_RATES = {
+  nails: { amount: 5, coins: 3 }, cloth: { amount: 2, coins: 4 }, clothing: { amount: 1, coins: 6 },
+  tools: { amount: 1, coins: 8 }, weapons: { amount: 1, coins: 12 }, armor: { amount: 1, coins: 16 },
+  milk: { amount: 10, coins: 2 }, wool: { amount: 10, coins: 3 }, eggs: { amount: 10, coins: 2 }, feathers: { amount: 10, coins: 1 },
 } as const
 export const SEED_PRICES = { carrot: 1, wheat: 2, potato: 2, tree: 5 } as const
 export const SEED_BUNDLE_SIZE = 5
@@ -352,8 +362,12 @@ export const farmHasWell = (s: VillageState, farm: Building) =>
   s.buildings.some((b) => b.kind === "well" && !b.construction && wellAffectsFarm(b, farm))
 export const farmWorkers = (s: VillageState, farmId: string) =>
   s.units.filter((u) => u.job.kind === "farm" && u.job.targetId === farmId)
-export const workerEfficiency = (s: VillageState, u: Unit) =>
-  u.kind === "villager" && s.economy.foodShortage ? 0.5 : 1
+export const workerEfficiency = (s: VillageState, u: Unit) => {
+  if (u.kind !== "villager") return 1
+  const satisfaction = s.city?.satisfaction ?? 60
+  const morale = satisfaction >= 85 ? 1.1 : satisfaction >= 70 ? 1.05 : satisfaction < 20 ? 0.6 : satisfaction < 35 ? 0.75 : satisfaction < 50 ? 0.9 : 1
+  return morale * (s.economy.foodShortage ? 0.5 : 1)
+}
 export const workerSpeed = (s: VillageState, u: Unit) =>
   (u.kind === "villager" ? 1.25 : 2) *
   (u.kind === "villager" ? 1 + s.research.workers * 0.15 + (s.toolLevel ?? 0) * 0.1 : 1) *

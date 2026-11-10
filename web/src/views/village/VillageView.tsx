@@ -1318,6 +1318,15 @@ function VillageScene({ village }: { village: VillageState }) {
                       Equipar armadura · {village.crafts?.armor ?? 0} disponíveis
                     </button>
                   )}
+                  {(selectedUnit.kind === "soldier" || selectedUnit.kind === "archer") && (
+                    <button onClick={async () => {
+                      if (await sendCommand({ type: "demobilizeUnit", unitId: selectedUnit.id })) {
+                        setSelection(null)
+                        setSelectedMilitaryIds([])
+                        setNotice("Aldeão voltou ao trabalho; o kit foi guardado no estoque.")
+                      }
+                    }}>Voltar à vida civil</button>
+                  )}
                 </span>
               </div>
             </>

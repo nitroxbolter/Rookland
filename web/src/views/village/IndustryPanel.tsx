@@ -20,6 +20,7 @@ export function IndustryPanel({ village, building, selectedUnitId, onDestroyed }
   const elapsed = production ? Math.ceil(production.duration - production.progress) : 0
   const workshop = building.kind === "blacksmith" || building.kind === "weaving"
   const crafts = village.crafts ?? { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+  const availableWorkers = village.units.filter((unit) => unit.kind === "villager" && unit.job.kind === "idle").length
   const defenseKind = (["wall", "gate", "tower"] as const).find((kind) => kind === building.kind)
   const defense = (building.kind === "tower" ? 30 : building.kind === "gate" ? 8 : 4) * building.level
   const defenseImprovement = defenseKind
@@ -44,13 +45,13 @@ export function IndustryPanel({ village, building, selectedUnitId, onDestroyed }
     ) : building.kind === "barracks" ? (
       <>
         <p className="selection-description">Treine soldados de infantaria ou arqueiros. Cada unidade militar ocupa uma vaga e consome 5 comidas a cada 10 minutos.</p>
-        <p>População: {village.units.length}/{populationCapacity(village)} · Armas: {crafts.weapons} · Roupas: {crafts.clothing}</p>
+        <p>População: {village.units.length}/{populationCapacity(village)} · Aldeões livres: {availableWorkers} · Armas: {crafts.weapons} · Roupas: {crafts.clothing}</p>
         <BatchQuantity value={amount} onChange={setAmount} max={10} />
-        <button className={`primary-action${!afford(village, { food: SOLDIER_COST.food * amount, gold: SOLDIER_COST.gold * amount }) || crafts.weapons < amount || crafts.clothing < amount ? " is-missing" : ""}`} disabled={!!building.construction || !!production || village.units.length + amount > populationCapacity(village) || crafts.weapons < amount || crafts.clothing < amount || !afford(village, { food: SOLDIER_COST.food * amount, gold: SOLDIER_COST.gold * amount })} onClick={() => void sendCommand({ type: "trainSoldier", buildingId: building.id, amount })}>
-          Treinar {amount} · {SOLDIER_SECONDS * amount}s · {SOLDIER_COST.food * amount} comida, {SOLDIER_COST.gold * amount} ouro, {amount} armas, {amount} roupas
+        <button className={`primary-action${availableWorkers < amount || !afford(village, { food: SOLDIER_COST.food * amount }) || (village.city?.treasury ?? 40) < SOLDIER_COST.gold * amount || crafts.weapons < amount || crafts.clothing < amount ? " is-missing" : ""}`} disabled={!!building.construction || !!production || availableWorkers < amount || crafts.weapons < amount || crafts.clothing < amount || (village.city?.treasury ?? 40) < SOLDIER_COST.gold * amount || !afford(village, { food: SOLDIER_COST.food * amount })} onClick={() => void sendCommand({ type: "trainSoldier", buildingId: building.id, amount })}>
+          Treinar {amount} · {SOLDIER_SECONDS * amount}s · {SOLDIER_COST.food * amount} comida, {SOLDIER_COST.gold * amount} moedas, {amount} armas, {amount} roupas
         </button>
-        <button className={`primary-action${!afford(village, { food: ARCHER_COST.food * amount, gold: ARCHER_COST.gold * amount }) || crafts.weapons < amount || crafts.clothing < amount ? " is-missing" : ""}`} disabled={!!building.construction || !!production || village.units.length + amount > populationCapacity(village) || crafts.weapons < amount || crafts.clothing < amount || !afford(village, { food: ARCHER_COST.food * amount, gold: ARCHER_COST.gold * amount })} onClick={() => void sendCommand({ type: "trainArcher", buildingId: building.id, amount })}>
-          Treinar {amount} arqueiro{amount > 1 ? "s" : ""} · {ARCHER_SECONDS * amount}s · {ARCHER_COST.food * amount} comida, {ARCHER_COST.gold * amount} ouro, {amount} armas, {amount} roupas
+        <button className={`primary-action${availableWorkers < amount || !afford(village, { food: ARCHER_COST.food * amount }) || (village.city?.treasury ?? 40) < ARCHER_COST.gold * amount || crafts.weapons < amount || crafts.clothing < amount ? " is-missing" : ""}`} disabled={!!building.construction || !!production || availableWorkers < amount || crafts.weapons < amount || crafts.clothing < amount || (village.city?.treasury ?? 40) < ARCHER_COST.gold * amount || !afford(village, { food: ARCHER_COST.food * amount })} onClick={() => void sendCommand({ type: "trainArcher", buildingId: building.id, amount })}>
+          Treinar {amount} arqueiro{amount > 1 ? "s" : ""} · {ARCHER_SECONDS * amount}s · {ARCHER_COST.food * amount} comida, {ARCHER_COST.gold * amount} moedas, {amount} armas, {amount} roupas
         </button>
       </>
     ) : <WorkshopPanel village={village} building={building} />}

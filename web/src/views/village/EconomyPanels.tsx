@@ -47,6 +47,8 @@ import {
   IMPROVEMENT_SECONDS,
   MARKET_RATES,
   MARKET_BUY_RATES,
+  MARKET_PRODUCT_RATES,
+  MARKET_CYCLE_BUDGET,
   SEED_PRICES,
   SEED_BUNDLE_SIZE,
   BARN_UPGRADE_COSTS,
@@ -61,6 +63,10 @@ import {
   UPKEEP_PER_ANIMAL,
   UPKEEP_PER_SOLDIER,
   UPKEEP_PER_VILLAGER,
+  FINANCE_INTERVAL,
+  TAX_RATES,
+  CIVILIAN_WAGE,
+  MILITARY_WAGE,
 } from "../../../../shared/village/config"
 import { sendCommand } from "@/services/gameClient"
 import { commerceGoals, ERA_NAMES, townLevel, unlockReason, villageEra } from "../../../../shared/village/progression"
@@ -360,7 +366,7 @@ export function BarnManagement({
   )
 }
 
-type TownTab = "era" | "workers" | "agriculture" | "market" | "seeds" | "animals"
+type TownTab = "era" | "workers" | "agriculture" | "market" | "seeds" | "animals" | "society"
 const TABS: { id: TownTab; label: string; icon: typeof Users }[] = [
   { id: "era", label: "Era", icon: Flag },
   { id: "workers", label: "Aldeões", icon: Users },
@@ -368,6 +374,7 @@ const TABS: { id: TownTab; label: string; icon: typeof Users }[] = [
   { id: "market", label: "Mercado", icon: Coins },
   { id: "seeds", label: "Sementes", icon: Sprout },
   { id: "animals", label: "Animais", icon: PawPrint },
+  { id: "society", label: "Cidade", icon: Users },
 ]
 
 function TownCost({ cost, available }: { cost: Partial<Resources>; available?: Resources }) {
@@ -490,7 +497,7 @@ export function TownCenterMenu({
                 onClick={() => { void sendCommand({ type: "upgradeTownCenter" }) }}>
                 <Home size={15} /> {center.level === 1 ? "Avançar para Comércio" : center.level === 3 ? "Avançar para Fortaleza" : center.level === 5 ? "Avançar para Reino" : center.level === 7 ? "Avançar para Império" : `Melhorar centro urbano · nível ${center.level + 1}`}
                 <TownCost cost={nextTownCost!} available={village.resources} />
-                <small><Clock3 size={13} aria-hidden="true" /> {IMPROVEMENT_SECONDS[(center.level + 1) as 2 | 3 | 4 | 5 | 6 | 7 | 8] / 60} min</small>
+                <small>Avanço imediato quando todos os materiais estiverem disponíveis.</small>
                 {center.level === 1 && <small>Libera ferro, mercado, oficinas e quartel.</small>}
               </button>
               {missingGoals.length > 0 && <p className="town-upgrade-reason">Para avançar: {missingGoalText}.</p>}
@@ -498,7 +505,9 @@ export function TownCenterMenu({
               </>
             ) : <p className="economy-caption">Centro urbano no nível máximo.</p>}
           </div>
-        ) : tab === "market" ? (
+        ) : tab === "society" ? (
+            <SocietyPanel village={village} />
+          ) : tab === "market" ? (
             <MarketPanel village={village} />
           ) : tab === "seeds" ? (
             <SeedPanel village={village} />
@@ -607,20 +616,20 @@ function SeedPanel({ village }: { village: VillageState }) {
           <h2>Sementes</h2>
           <p>Compre sementes para escolher o cultivo e replantar árvores.</p>
         </div>
-        <span><Coins size={18} /> {village.resources.gold} ouro</span>
+        <span><Coins size={18} /> {village.city?.treasury ?? 40} moedas</span>
       </div>
       <div className="seed-list">
         {seeds.map(({ id, name }) => {
           const cost = SEED_PRICES[id] * SEED_BUNDLE_SIZE
           return (
             <div key={id}>
-              <span><strong>{name}</strong><small>{village.seeds[id]} em estoque · {SEED_PRICES[id]} ouro cada</small></span>
+              <span><strong>{name}</strong><small>{village.seeds[id]} em estoque · {SEED_PRICES[id]} moedas cada</small></span>
               <button
                 className="primary-action"
-                disabled={village.resources.gold < cost}
+                disabled={(village.city?.treasury ?? 40) < cost}
                 onClick={() => { void sendCommand({ type: "buySeeds", seed: id, amount: SEED_BUNDLE_SIZE }) }}
               >
-                Comprar {SEED_BUNDLE_SIZE} · {cost} ouro
+                Comprar {SEED_BUNDLE_SIZE} · {cost} moedas
               </button>
             </div>
           )
@@ -641,14 +650,15 @@ function MarketPanel({ village }: { village: VillageState }) {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState("")
   const capacity = storageCapacities(village)
+  const caravanRoom = Math.max(0, MARKET_CYCLE_BUDGET - (village.city?.tradeRevenue ?? 0))
   async function trade(resource: keyof typeof MARKET_RATES, amount: number, side: "buy" | "sell") {
     if (busy) return
     setBusy(true)
     setMessage("")
     if (side === "sell" && await sendCommand({ type: "sellResource", resource, amount }))
-      setMessage(`Venda concluída: +${(amount / MARKET_RATES[resource].amount) * MARKET_RATES[resource].gold} ouro.`)
+      setMessage(`Venda concluída: +${(amount / MARKET_RATES[resource].amount) * MARKET_RATES[resource].gold} moedas.`)
     else if (side === "buy" && await sendCommand({ type: "buyResource", resource, amount }))
-      setMessage(`Compra concluída: ${amount} ${RESOURCE_NAMES[resource].toLowerCase()} por ${(amount / MARKET_BUY_RATES[resource].amount) * MARKET_BUY_RATES[resource].gold} ouro.`)
+      setMessage(`Compra concluída: ${amount} ${RESOURCE_NAMES[resource].toLowerCase()} por ${(amount / MARKET_BUY_RATES[resource].amount) * MARKET_BUY_RATES[resource].gold} moedas.`)
     setBusy(false)
   }
   return (
@@ -656,11 +666,11 @@ function MarketPanel({ village }: { village: VillageState }) {
       <div className="market-heading">
         <div>
           <h2>Mercado da vila</h2>
-          <p>Compre recursos por mais ouro ou venda o que sobrar.</p>
+          <p>Ouro minerado é material. Vendas rendem moedas para o tesouro.</p>
         </div>
         <span>
           <Coins size={20} />
-          {village.resources.gold} / {capacity.gold}
+          {village.city?.treasury ?? 40} moedas
         </span>
       </div>
       <div className="market-list">
@@ -668,13 +678,12 @@ function MarketPanel({ village }: { village: VillageState }) {
           (resource) => {
             const rate = MARKET_RATES[resource]
             const buyRate = MARKET_BUY_RATES[resource]
-            const goldRoom = Math.max(0, capacity.gold - village.resources.gold)
             const maxSell = Math.min(
               Math.floor(village.resources[resource] / rate.amount) * rate.amount,
-              Math.floor(goldRoom / rate.gold) * rate.amount,
+              Math.floor(caravanRoom / rate.gold) * rate.amount,
             )
             const maxBuy = Math.min(
-              Math.floor(goldRoom / buyRate.gold) * buyRate.amount,
+              Math.floor((village.city?.treasury ?? 40) / buyRate.gold) * buyRate.amount,
               Math.floor((capacity[resource] - village.resources[resource]) / buyRate.amount) * buyRate.amount,
             )
             const maxAmount = Math.max(maxSell, maxBuy)
@@ -707,10 +716,10 @@ function MarketPanel({ village }: { village: VillageState }) {
                 </div>
                 <div className="market-trades">
                   <button className="market-buy" disabled={busy || amount === 0 || amount > maxBuy} onClick={() => void trade(resource, amount, "buy")}>
-                    Comprar · {buyGold} ouro
+                    Comprar · {buyGold} moedas
                   </button>
                   <button className="market-sell" disabled={busy || amount === 0 || amount > maxSell} onClick={() => void trade(resource, amount, "sell")}>
-                    Vender · +{sellGold} ouro
+                    Vender · +{sellGold} moedas
                   </button>
                 </div>
               </div>
@@ -718,15 +727,86 @@ function MarketPanel({ village }: { village: VillageState }) {
           },
         )}
       </div>
+      <p className="economy-caption">Caravana: {caravanRoom}/{MARKET_CYCLE_BUDGET} moedas disponíveis neste ciclo financeiro.</p>
+      <div className="city-market-products">
+        {(Object.keys(MARKET_PRODUCT_RATES) as (keyof typeof MARKET_PRODUCT_RATES)[]).map((item) => {
+          const quote = MARKET_PRODUCT_RATES[item]
+          const stock = item in (village.crafts ?? {})
+            ? village.crafts?.[item as keyof NonNullable<VillageState["crafts"]>] ?? 0
+            : village.animalProducts?.[item as keyof NonNullable<VillageState["animalProducts"]>] ?? 0
+          const name = ({ nails: "Pregos", cloth: "Tecido", clothing: "Roupa", tools: "Ferramenta", weapons: "Arma", armor: "Armadura", milk: "Leite", wool: "Lã", eggs: "Ovos", feathers: "Penas" } as const)[item]
+          return <button key={item} type="button" disabled={busy || stock < quote.amount || caravanRoom < quote.coins}
+            onClick={async () => {
+              setBusy(true)
+              if (await sendCommand({ type: "sellProduct", item, amount: quote.amount })) setMessage(`Vendido: ${quote.amount} ${name.toLowerCase()} · +${quote.coins} moedas.`)
+              setBusy(false)
+            }}>{name} {stock} · vender {quote.amount} por {quote.coins} moedas</button>
+        })}
+      </div>
+      <button type="button" className="primary-action" disabled={busy || village.resources.gold < 10 || caravanRoom < 10}
+        onClick={async () => {
+          setBusy(true)
+          if (await sendCommand({ type: "mintGold", amount: 10 })) setMessage("10 ouros minerados trocados por 10 moedas.")
+          setBusy(false)
+        }}>Trocar 10 ouros minerados por 10 moedas</button>
       {message && (
         <p className="market-message" role="status">
           {message}
         </p>
       )}
       <p className="economy-caption">
-        O ouro é a moeda recebida nas vendas. A venda consome os recursos
-        guardados e exige espaço no estoque de ouro.
+        O mercado usa moedas do tesouro. Ouro extraído continua no estoque para construções e oficinas.
       </p>
     </div>
   )
+}
+
+const TAX_LABELS = { exempt: "Isento", low: "Baixo", normal: "Normal", high: "Alto", abusive: "Abusivo" } as const
+
+function SocietyPanel({ village }: { village: VillageState }) {
+  const city = village.city
+  if (!city) return <p>Preparando a economia da cidade…</p>
+  const civilians = village.units.filter((unit) => unit.kind === "villager").length
+  const military = village.units.filter((unit) => unit.kind === "soldier" || unit.kind === "archer").length
+  const wages = (townLevel(village) >= 2 ? civilians * CIVILIAN_WAGE : 0)
+  const soldierPay = military * MILITARY_WAGE
+  const windowStart = village.economy.elapsed - 3600
+  const flows = (Object.keys(RESOURCE_NAMES) as (keyof Resources)[]).map((resource) => {
+    const entries = city.flows.filter((entry) => entry.resource === resource && entry.at > windowStart)
+    return { resource, received: entries.filter((entry) => entry.delta > 0).reduce((sum, entry) => sum + entry.delta, 0),
+      spent: -entries.filter((entry) => entry.delta < 0).reduce((sum, entry) => sum + entry.delta, 0) }
+  })
+  const causes = [
+    village.economy.foodShortage ? "Comida insuficiente reduz satisfação e trabalho." : "Comida suficiente melhora a satisfação.",
+    city.unpaidCycles ? `Pagamento incompleto por ${city.unpaidCycles} ciclo(s). Venda excedentes no mercado.` : "Salários e soldos em dia.",
+    city.taxPolicy === "high" || city.taxPolicy === "abusive" ? "Impostos altos reduzem a satisfação." : "Impostos moderados preservam a confiança.",
+  ]
+  const taxLocked = village.economy.elapsed - city.lastTaxChangeAt < UPKEEP_INTERVAL
+  return <div className="town-upgrade city-economy-panel">
+    <h2>Cidade e tesouro</h2>
+    <div className="city-economy-stats">
+      <span><Coins size={16} /> <strong>{city.treasury}</strong> moedas</span>
+      <span><Users size={16} /> <strong>{Math.round(city.satisfaction)}</strong>/100 satisfação</span>
+      <span><ShieldCheck size={16} /> <strong>{Math.round(city.trust)}</strong>/100 confiança</span>
+    </div>
+    <p>Próximo ciclo financeiro em {Math.ceil((FINANCE_INTERVAL - city.financeElapsed) / 60)} min de jogo · salários {wages} · soldos {soldierPay} moedas.</p>
+    <p>Último ciclo: +{city.lastCycle.taxes} impostos · -{city.lastCycle.paid}/{city.lastCycle.wages + city.lastCycle.military} pagos.</p>
+    {city.treasury < wages + soldierPay && <p className="town-upgrade-reason">Faltam {wages + soldierPay - city.treasury} moedas para a próxima folha. Venda recursos no mercado.</p>}
+    <div className="city-tax-policies" aria-label="Política tributária">
+      {(Object.keys(TAX_RATES) as (keyof typeof TAX_RATES)[]).map((policy) =>
+        <button key={policy} type="button" aria-pressed={city.taxPolicy === policy}
+          disabled={taxLocked && city.taxPolicy !== policy}
+          title={`${Math.round(TAX_RATES[policy] * 100)}% sobre a atividade produtiva`}
+          onClick={() => void sendCommand({ type: "setTaxPolicy", policy })}>{TAX_LABELS[policy]} · {Math.round(TAX_RATES[policy] * 100)}%</button>)}
+    </div>
+    <p className="economy-caption">Impostos incidem sobre a produção de comida, limitados pela população trabalhadora. Uma alteração por ciclo de 10 min.</p>
+    <button type="button" className="primary-action" disabled={village.resources.food < 100 || city.treasury < 20 || village.economy.elapsed - city.festivalAt < FINANCE_INTERVAL}
+      onClick={() => void sendCommand({ type: "holdFestival" })}>Festival da colheita · 100 comida · 20 moedas · +8 satisfação</button>
+    <div className="city-flow-list" aria-label="Fluxo de recursos na última hora de jogo">
+      {flows.map(({ resource, received, spent }) => <span key={resource}>
+        <strong>{RESOURCE_NAMES[resource]}</strong> +{received} · -{spent} <small>líquido {received - spent >= 0 ? "+" : ""}{received - spent}/h</small>
+      </span>)}
+    </div>
+    <p className="economy-caption">{causes.join(" ")}</p>
+  </div>
 }

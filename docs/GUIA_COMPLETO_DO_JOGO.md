@@ -4,17 +4,17 @@ Este documento registra o comportamento que existe no código hoje e separa o qu
 
 ## Progressão do reino
 
-O Centro Urbano tem níveis 1 a 8. As faixas de era aparecem nos níveis 1 (Fundação), 2–3 (Comércio), 4–5 (Fortaleza), 6–7 (Reino) e 8 (Império). A primeira transição exige casa e celeiro prontos, dois aldeões trabalhando e 60 unidades de comida colhidas. Níveis 6–8 são sumidouros de recursos e levam 20, 30 e 45 minutos de jogo.
+O Centro Urbano tem níveis 1 a 8. As faixas de era aparecem nos níveis 1 (Fundação), 2–3 (Comércio), 4–5 (Fortaleza), 6–7 (Reino) e 8 (Império). A primeira transição exige casa e celeiro prontos, dois aldeões trabalhando e 60 unidades de comida colhidas. O avanço do Centro Urbano acontece assim que os requisitos e materiais são entregues, sem cronômetro de era.
 
-| Centro para nível | Madeira | Pedra | Comida | Ferro | Ouro | Tempo |
-|---|---:|---:|---:|---:|---:|---:|
-| 2 | 120 | 80 | 100 | — | — | 3 min |
-| 3 | 250 | 180 | — | 70 | 40 | 5 min |
-| 4 | 450 | 350 | — | 120 | 100 | 8 min |
-| 5 | 750 | 600 | — | 220 | 200 | 12 min |
-| 6 | 2.500 | 2.500 | 5.000 | 1.200 | 800 | 20 min |
-| 7 | 6.000 | 5.000 | 12.000 | 3.000 | 2.000 | 30 min |
-| 8 | 12.000 | 10.000 | 25.000 | 6.500 | 5.000 | 45 min |
+| Centro para nível | Madeira | Pedra | Comida | Ferro | Ouro |
+|---|---:|---:|---:|---:|---:|
+| 2 | 120 | 80 | 100 | — | — |
+| 3 | 250 | 180 | — | 70 | 40 |
+| 4 | 450 | 350 | — | 120 | 100 |
+| 5 | 750 | 600 | — | 220 | 200 |
+| 6 | 2.500 | 2.500 | 5.000 | 1.200 | 800 |
+| 7 | 6.000 | 5.000 | 12.000 | 3.000 | 2.000 |
+| 8 | 12.000 | 10.000 | 25.000 | 6.500 | 5.000 |
 
 O Centro Urbano guarda até 100 madeira, 100 pedra e 100 ouro. Comida e ferro precisam de celeiro. Os estoques dos celeiros prontos se somam; celeiros em construção ou melhoria ainda não aumentam o limite.
 
@@ -32,7 +32,7 @@ As coordenadas e custos-base abaixo refletem `shared/village/config.ts`. O traba
 | Curral | 2×2 | 50 madeira + 10 pedra | Níveis 1–5 comportam 2, 4, 6, 8 e 10 animais. Um aldeão cuida da coleta e reprodução. |
 | Muro | 1×1 | 8 madeira + 12 pedra | Bloqueia caminho. Níveis 1–3. |
 | Portão | 2×1 | 35 madeira + 30 pedra + 5 ferro | Permite passagem das unidades aliadas. Níveis 1–3. |
-| Torre | 2×2 | 55 madeira + 110 pedra + 15 ferro | Guarnece arqueiros e ataca criaturas hostis. Até nível 4. |
+| Torre | 2×2 | 55 madeira + 110 pedra + 15 ferro | Guarnece arqueiros e ataca criaturas ao alcance. Até nível 4. |
 | Ferraria | 3×3 | 100 madeira + 80 pedra + 20 ferro | Produz pregos, ferramentas, armas e armaduras. |
 | Tecelagem | 3×3 | 90 madeira + 35 pedra | Produz tecido e roupas a partir de lã e outros insumos. |
 | Quartel | 3×3 | 150 madeira + 100 pedra + 25 ferro | Treina soldados e arqueiros em fila. |
@@ -65,7 +65,7 @@ Melhorias do celeiro 2–5 custam, respectivamente: 80 madeira/50 pedra/15 ferro
 
 A vila começa com um explorador e um aldeão. Novos aldeões custam 30 comida e levam 45 segundos cada; podem entrar numa fila no Centro Urbano. Casas definem o limite populacional.
 
-Aldeões podem construir, cultivar, cuidar de um curral ou coletar um recurso. O explorador também pode receber ordens de trabalho. Soldados e arqueiros são unidades militares: podem se mover e atacar criaturas. Aldeões, explorador, soldados e arqueiros têm vida; armaduras e pesquisa de armadura reduzem dano.
+Aldeões podem construir, cultivar, cuidar de um curral ou coletar um recurso. O explorador também pode receber ordens de trabalho. O quartel reserva um aldeão livre para cada soldado ou arqueiro treinado: a população total não cresce com o treinamento. Desmobilizar devolve o trabalhador à vida civil e guarda arma, roupa e armadura no estoque. Soldados e arqueiros podem se mover e atacar criaturas. Aldeões, explorador, soldados e arqueiros têm vida; armaduras e pesquisa de armadura reduzem dano.
 
 As unidades procuram rota até o objetivo, evitam água, relevo, estruturas, depósitos e criaturas e voltam ao estoque para entregar a carga. Se o destino estiver bloqueado, o comando é recusado com motivo.
 
@@ -99,7 +99,13 @@ O ciclo de coleta animal leva oito segundos de trabalho. Com aldeão responsáve
 | Arma ×1 | 20 ferro + 10 madeira + 5 ouro + 3 pregos | 60 s |
 | Armadura ×1 | 25 ferro + 8 ouro + 3 pregos + 2 tecidos | 75 s |
 
-O Centro Urbano troca lotes de 10: venda rende 1 ouro por comida, 2 por madeira, 3 por pedra e 5 por ferro; comprar custa o dobro. Sementes são compradas em pacotes. Pesquisa abre cestos/carrinho/carroça, arados, compostagem, adubação e irrigação, com três níveis cada.
+O Centro Urbano troca lotes de 10: venda rende 1 moeda por comida, 2 por madeira, 3 por pedra e 5 por ferro; comprar custa o dobro. Produtos de oficinas e animais também podem ser vendidos. Ouro minerado permanece material, separado das moedas do tesouro, mas pode ser trocado no mercado em lotes de 10. A caravana compra até 1.000 moedas por ciclo financeiro de 30 minutos. Sementes e treinamento usam moedas. Pesquisa abre cestos/carrinho/carroça, arados, compostagem, adubação e irrigação, com três níveis cada.
+
+## Tesouro e sociedade
+
+O Centro Urbano tem a aba Cidade. Ela mostra moedas, satisfação, confiança, salários, soldos, impostos e entradas/saídas de cada recurso na última hora de jogo. A cada 30 minutos de simulação, a cidade cobra impostos sobre a produção recente de comida (limitados pela população trabalhadora) e paga 2 moedas por aldeão ativo e 4 por soldado ou arqueiro. Salários civis começam na Era do Comércio. Insuficiência de moedas gera atraso e reduz a satisfação gradualmente. Enquanto ninguém está conectado, a satisfação não cai abaixo de 50 e a confiança não cai abaixo de 45 por esse sistema.
+
+Há cinco políticas tributárias, de isenção a impostos abusivos; a política só pode ser alterada uma vez a cada dez minutos de jogo. Um festival consome 100 comida e 20 moedas para elevar satisfação e confiança; só pode ocorrer uma vez por ciclo financeiro. A satisfação modifica a eficiência dos trabalhadores, sem impedir a coleta básica.
 
 ## Combate e PvP
 

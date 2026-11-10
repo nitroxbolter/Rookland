@@ -24,6 +24,8 @@ export const height = map.data.height
 let groundTiles = new Map(map.data.groundTiles as [string, GroundTile][])
 let village = createVillage()
 let villageTimer: ReturnType<typeof setInterval> | null = null
+let playerConnected = false
+export const setPlayerConnected = (connected: boolean) => { playerConnected = connected }
 
 export function snapshot(): WorldSnapshot {
   const { activeTool, tilledSoil, ...world } = worldStore.getState()
@@ -100,9 +102,14 @@ export function execute(command: GameCommand) {
     case "attackCreature":
     case "stockRanch":
     case "equipSoldier":
+    case "demobilizeUnit":
     case "sellResource":
     case "buyResource":
     case "buySeeds":
+    case "setTaxPolicy":
+    case "holdFestival":
+    case "sellProduct":
+    case "mintGold":
     case "plantTree":
     case "relocateTownCenter":
     case "recruitVillager":
@@ -173,7 +180,7 @@ export const startGame = () => {
   if (!villageTimer)
     villageTimer = setInterval(() => {
       const state = worldStore.getState()
-      if (!state.isPaused) updateVillage(village, 0.2 * state.timeScale)
+      if (!state.isPaused) updateVillage(village, 0.2 * state.timeScale, playerConnected)
     }, 200)
 }
 export const stopGame = () => {

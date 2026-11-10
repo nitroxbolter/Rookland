@@ -11,6 +11,7 @@ import type {
   CraftItem,
   AnimalKind,
   WildCreature,
+  CityEconomy,
 } from "./types"
 import { commerceGoals, townLevel, unlockReason } from "./progression"
 import { isVillageGround, prepareVillageMapEdits, validVillageMapTiles } from "./map"
@@ -35,6 +36,10 @@ import {
   RECRUIT_SECONDS,
   RESEARCH,
   UPKEEP_INTERVAL,
+  FINANCE_INTERVAL,
+  TAX_RATES,
+  CIVILIAN_WAGE,
+  MILITARY_WAGE,
   PRODUCTION_WINDOW,
   farmWorkers,
   farmYield,
@@ -46,6 +51,8 @@ import {
   FARM_HARVEST_SECONDS,
   MARKET_RATES,
   MARKET_BUY_RATES,
+  MARKET_PRODUCT_RATES,
+  MARKET_CYCLE_BUDGET,
   SEED_PRICES,
   SEED_BUNDLE_SIZE,
   TREE_GROW_SECONDS,
@@ -88,6 +95,7 @@ export function createVillage(): VillageState {
       foodShortage: false,
       foodIncome: [],
     },
+    city: initialCityEconomy(),
     width: 32,
     height: 32,
     resources: { wood: 80, stone: 40, food: 20, iron: 0, gold: 0 },
@@ -445,6 +453,56 @@ function spend(s: VillageState, cost: Partial<Resources>) {
   for (const [kind, amount] of Object.entries(cost))
     s.resources[kind as Resource] -= amount
 }
+function initialCityEconomy(): CityEconomy {
+  return {
+    treasury: 40, taxPolicy: "normal", satisfaction: 60, trust: 60,
+    financeElapsed: 0, unpaidCycles: 0, lastTaxChangeAt: -600, festivalAt: -FINANCE_INTERVAL, tradeRevenue: 0,
+    lastCycle: { taxes: 0, wages: 0, military: 0, paid: 0 }, flows: [],
+  }
+}
+function cityEconomy(s: VillageState): CityEconomy {
+  return s.city ??= initialCityEconomy()
+}
+function recordResourceFlow(s: VillageState, before: Resources, reason: string) {
+  const city = cityEconomy(s)
+  for (const resource of Object.keys(before) as Resource[]) {
+    const delta = s.resources[resource] - before[resource]
+    if (!delta) continue
+    const bucket = Math.floor(s.economy.elapsed / 60)
+    const previous = city.flows[city.flows.length - 1]
+    if (previous && previous.resource === resource && previous.reason === reason &&
+      Math.floor(previous.at / 60) === bucket && Math.sign(previous.delta) === Math.sign(delta)) previous.delta += delta
+    else city.flows.push({ at: s.economy.elapsed, resource, delta, reason })
+  }
+  city.flows = city.flows.filter((entry) => entry.at > s.economy.elapsed - 3600)
+}
+function financeCycle(s: VillageState, online: boolean) {
+  const city = cityEconomy(s)
+  const civilians = s.units.filter((unit) => unit.kind === "villager").length
+  const military = s.units.filter((unit) => unit.kind === "soldier" || unit.kind === "archer").length
+  const producedFood = city.flows.filter((entry) => entry.resource === "food" && entry.delta > 0 &&
+    entry.reason === "produção" && entry.at > s.economy.elapsed - FINANCE_INTERVAL)
+    .reduce((sum, entry) => sum + entry.delta, 0)
+  const taxableBase = Math.min(Math.floor(producedFood / 10), civilians * 20)
+  const taxes = Math.floor(taxableBase * TAX_RATES[city.taxPolicy])
+  const wages = townLevel(s) >= 2 ? civilians * CIVILIAN_WAGE : 0
+  const militaryCost = military * MILITARY_WAGE
+  city.treasury += taxes
+  const paid = Math.min(city.treasury, wages + militaryCost)
+  city.treasury -= paid
+  city.unpaidCycles = paid < wages + militaryCost ? Math.min(online ? 3 : 2, city.unpaidCycles + 1) : 0
+  city.lastCycle = { taxes, wages, military: militaryCost, paid }
+  city.tradeRevenue = 0
+  const variety = ["milk", "eggs", "wool"].filter((product) => (s.animalProducts?.[product as "milk" | "eggs" | "wool"] ?? 0) > 0).length
+  const taxEffect = { exempt: 8, low: 3, normal: 0, high: -8, abusive: -20 }[city.taxPolicy]
+  const target = Math.max(0, Math.min(100, 50 + (s.economy.foodShortage ? -18 : 8) +
+    (populationCapacity(s) >= s.units.length ? 8 : -12) + (paid >= wages + militaryCost ? 6 : -12) +
+    (variety >= 2 ? 5 : 0) + (military || s.buildings.some((b) => b.kind === "tower") ? 5 : 0) +
+    (s.economy.elapsed - city.festivalAt < FINANCE_INTERVAL ? 6 : 0) + taxEffect))
+  city.satisfaction += Math.max(-8, Math.min(8, (online ? target : Math.max(50, target)) - city.satisfaction))
+  const trustTarget = Math.max(online ? 0 : 45, Math.min(100, city.satisfaction + (city.unpaidCycles ? -10 : 0)))
+  city.trust += Math.max(-3, Math.min(3, trustTarget - city.trust))
+}
 function spendCrafts(s: VillageState, cost: Partial<Record<CraftItem, number>>) {
   for (const [kind, amount] of Object.entries(cost))
     if ((s.crafts?.[kind as CraftItem] ?? 0) < amount)
@@ -584,7 +642,7 @@ function scaledCost(cost: Partial<Resources>, amount: number): Partial<Resources
   return Object.fromEntries(Object.entries(cost).map(([kind, count]) => [kind, count * amount]))
 }
 function pendingSoldiers(s: VillageState) {
-  return s.buildings.reduce((total, building) => total + (["soldier", "archer"].includes(building.production?.item ?? "") ? building.production?.remaining ?? 1 : 0), 0)
+  return s.buildings.reduce((total, building) => total + (["soldier", "archer"].includes(building.production?.item ?? "") && !building.production?.traineeIds ? building.production?.remaining ?? 1 : 0), 0)
 }
 
 function stowLoad(u: Unit) {
@@ -630,6 +688,7 @@ function releaseBuilder(s: VillageState, buildingId: string) {
 }
 
 export function executeVillage(s: VillageState, command: VillageCommand) {
+  const resourcesBefore = { ...s.resources }
   const requireUnlock = (unlock: Parameters<typeof unlockReason>[1]) => {
     const reason = unlockReason(s, unlock)
     if (reason) throw new Error(reason)
@@ -921,7 +980,8 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       spend(s, command.type === "upgradeHouse"
         ? HOUSE_UPGRADE_COSTS[targetLevel as 2 | 3]
         : TOWN_UPGRADE_COSTS[targetLevel])
-      s.improvements.push({
+      if (b.kind === "townCenter") b.level = targetLevel
+      else s.improvements.push({
         kind: "building",
         buildingId: b.id,
         targetLevel,
@@ -973,6 +1033,11 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       const building = s.buildings.find((b) => b.id === command.buildingId &&
         ["wall", "gate", "tower", "blacksmith", "weaving", "barracks", "ranch"].includes(b.kind))
       if (!building) throw new Error("Construção não encontrada.")
+      for (const unit of s.units)
+        if (unit.job.kind === "training" && unit.job.targetId === building.id) {
+          unit.job = { kind: "idle" }
+          unit.status = "idle"
+        }
       s.buildings = s.buildings.filter((b) => b.id !== building.id)
       s.improvements = s.improvements?.filter((item) => item.kind !== "building" || item.buildingId !== building.id)
       releaseBuilder(s, building.id)
@@ -1069,12 +1134,21 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       const barracks = s.buildings.find((b) => b.id === command.buildingId && b.kind === "barracks" && !b.construction)
       if (!barracks) throw new Error("Quartel indisponível.")
       if (barracks.production) throw new Error("Este quartel já está treinando.")
-      if (s.units.length + pendingSoldiers(s) + (s.recruitment?.remaining ?? 0) + amount > populationCapacity(s)) throw new Error("Construa mais casas para aumentar a população.")
+      const trainees = s.units.filter((unit) => unit.kind === "villager" && unit.job.kind === "idle").slice(0, amount)
+      if (trainees.length < amount) throw new Error(`São necessários ${amount} aldeões livres para treinar.`)
       if ((s.crafts?.weapons ?? 0) < amount || (s.crafts?.clothing ?? 0) < amount)
         throw new Error(`${archer ? "O arqueiro precisa de um arco e uma roupa" : "O soldado precisa de uma arma e uma roupa"}.`)
-      spend(s, scaledCost(archer ? ARCHER_COST : SOLDIER_COST, amount))
+      const cost = archer ? ARCHER_COST : SOLDIER_COST
+      if (cityEconomy(s).treasury < cost.gold * amount) throw new Error("Moedas insuficientes no tesouro para o treinamento.")
+      spend(s, { food: cost.food * amount })
+      cityEconomy(s).treasury -= cost.gold * amount
       spendCrafts(s, { weapons: amount, clothing: amount })
-      barracks.production = { item: archer ? "archer" : "soldier", progress: 0, duration: archer ? ARCHER_SECONDS : SOLDIER_SECONDS, remaining: amount, total: amount }
+      barracks.production = { item: archer ? "archer" : "soldier", progress: 0, duration: archer ? ARCHER_SECONDS : SOLDIER_SECONDS, remaining: amount, total: amount, traineeIds: trainees.map((unit) => unit.id) }
+      for (const unit of trainees) {
+        unit.job = { kind: "training", targetId: barracks.id }
+        unit.status = "waiting"
+        unit.path = []
+      }
       break
     }
     case "equipSoldier": {
@@ -1083,6 +1157,26 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if ((s.crafts?.armor ?? 0) < 1) throw new Error("Produza uma armadura na ferraria.")
       s.crafts!.armor--
       soldier.armored = true
+      break
+    }
+    case "demobilizeUnit": {
+      const unit = s.units.find((candidate) => candidate.id === command.unitId &&
+        (candidate.kind === "soldier" || candidate.kind === "archer"))
+      if (!unit) throw new Error("Unidade militar não encontrada.")
+      if (unit.job.kind === "garrison") throw new Error("Retire o arqueiro da torre antes de desmobilizar.")
+      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+      s.crafts.weapons++
+      s.crafts.clothing++
+      if (unit.armored) s.crafts.armor++
+      unit.health = Math.max(1, Math.round(35 * (unit.health ?? unit.maxHealth ?? 35) / (unit.maxHealth ?? 35)))
+      unit.maxHealth = 35
+      unit.kind = "villager"
+      unit.name = `Aldeão ${s.units.filter((candidate) => candidate.kind === "villager").length + 1}`
+      delete unit.armored
+      unit.job = { kind: "idle" }
+      unit.status = "idle"
+      unit.path = []
+      unit.work = 0
       break
     }
     case "sellResource": {
@@ -1101,15 +1195,49 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (s.resources[command.resource] < command.amount)
         throw new Error("Recursos insuficientes para vender.")
       const gold = (command.amount / quote.amount) * quote.gold
-      if (
-        !Number.isSafeInteger(gold) ||
-        gold > storageCapacities(s).gold - s.resources.gold
-      )
-        throw new Error(
-          "Não há espaço para o ouro recebido. Construa ou melhore um celeiro.",
-        )
+      if (!Number.isSafeInteger(gold) || cityEconomy(s).treasury + gold > 1_000_000_000)
+        throw new Error("Tesouro no limite para esta venda.")
+      if (cityEconomy(s).tradeRevenue + gold > MARKET_CYCLE_BUDGET)
+        throw new Error("A caravana esgotou seu orçamento. Aguarde o próximo ciclo financeiro.")
       s.resources[command.resource] -= command.amount
-      s.resources.gold += gold
+      cityEconomy(s).treasury += gold
+      cityEconomy(s).tradeRevenue += gold
+      break
+    }
+    case "sellProduct": {
+      requireUnlock({ kind: "market" })
+      const quote = MARKET_PRODUCT_RATES[command.item]
+      if (!quote) throw new Error("Produto indisponível no mercado.")
+      if (!Number.isSafeInteger(command.amount) || command.amount <= 0 || command.amount % quote.amount !== 0)
+        throw new Error(`Venda em lotes de ${quote.amount}.`)
+      const coins = command.amount / quote.amount * quote.coins
+      const city = cityEconomy(s)
+      if (city.tradeRevenue + coins > MARKET_CYCLE_BUDGET || city.treasury + coins > 1_000_000_000)
+        throw new Error("A caravana esgotou seu orçamento para este ciclo.")
+      if (command.item in (s.crafts ?? {})) {
+        const item = command.item as CraftItem
+        if ((s.crafts?.[item] ?? 0) < command.amount) throw new Error("Produtos insuficientes.")
+        s.crafts![item] -= command.amount
+      } else {
+        const item = command.item as keyof NonNullable<VillageState["animalProducts"]>
+        if ((s.animalProducts?.[item] ?? 0) < command.amount) throw new Error("Produtos animais insuficientes.")
+        s.animalProducts![item] -= command.amount
+      }
+      city.treasury += coins
+      city.tradeRevenue += coins
+      break
+    }
+    case "mintGold": {
+      requireUnlock({ kind: "market" })
+      if (!Number.isSafeInteger(command.amount) || command.amount <= 0 || command.amount % 10 !== 0)
+        throw new Error("Troque ouro em lotes de 10.")
+      if (s.resources.gold < command.amount) throw new Error("Ouro minerado insuficiente.")
+      const city = cityEconomy(s)
+      if (city.tradeRevenue + command.amount > MARKET_CYCLE_BUDGET || city.treasury + command.amount > 1_000_000_000)
+        throw new Error("A casa de câmbio esgotou a cota deste ciclo.")
+      s.resources.gold -= command.amount
+      city.treasury += command.amount
+      city.tradeRevenue += command.amount
       break
     }
     case "buyResource": {
@@ -1119,10 +1247,10 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (!Number.isSafeInteger(command.amount) || command.amount <= 0 || command.amount % rate.amount !== 0)
         throw new Error(`Compra em lotes de ${rate.amount} recursos.`)
       const gold = (command.amount / rate.amount) * rate.gold
-      if (s.resources.gold < gold) throw new Error("Ouro insuficiente para esta compra.")
+      if (cityEconomy(s).treasury < gold) throw new Error("Moedas insuficientes para esta compra.")
       if (command.amount > storageCapacities(s)[command.resource] - s.resources[command.resource])
         throw new Error("Não há espaço no celeiro para essa quantidade.")
-      s.resources.gold -= gold
+      cityEconomy(s).treasury -= gold
       s.resources[command.resource] += command.amount
       break
     }
@@ -1134,9 +1262,32 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (!Number.isSafeInteger(command.amount) || command.amount <= 0)
         throw new Error("Quantidade de sementes inválida.")
       const gold = command.amount * SEED_PRICES[command.seed]
-      if (s.resources.gold < gold) throw new Error("Ouro insuficiente para comprar sementes.")
-      s.resources.gold -= gold
+      if (cityEconomy(s).treasury < gold) throw new Error("Moedas insuficientes para comprar sementes.")
+      cityEconomy(s).treasury -= gold
       s.seeds[command.seed] += command.amount
+      break
+    }
+    case "setTaxPolicy": {
+      if (!Object.prototype.hasOwnProperty.call(TAX_RATES, command.policy)) throw new Error("Política tributária inválida.")
+      const city = cityEconomy(s)
+      if (city.taxPolicy !== command.policy && s.economy.elapsed - city.lastTaxChangeAt < UPKEEP_INTERVAL)
+        throw new Error("Aguarde o próximo ciclo antes de alterar os impostos novamente.")
+      if (city.taxPolicy !== command.policy) {
+        city.taxPolicy = command.policy
+        city.lastTaxChangeAt = s.economy.elapsed
+      }
+      break
+    }
+    case "holdFestival": {
+      const city = cityEconomy(s)
+      if (s.economy.elapsed - city.festivalAt < FINANCE_INTERVAL)
+        throw new Error("Aguarde o próximo ciclo financeiro para organizar outro festival.")
+      if (city.treasury < 20) throw new Error("O festival exige 20 moedas no tesouro.")
+      spend(s, { food: 100 })
+      city.treasury -= 20
+      city.festivalAt = s.economy.elapsed
+      city.satisfaction = Math.min(100, city.satisfaction + 8)
+      city.trust = Math.min(100, city.trust + 3)
       break
     }
     case "plantTree": {
@@ -1210,6 +1361,7 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
     case "stopUnit": {
       const u = s.units.find((u) => u.id === command.unitId)
       if (!u) throw new Error("Unidade não encontrada.")
+      if (u.job.kind === "training") throw new Error("Este aldeão está treinando no quartel.")
       if ((u.kind === "soldier" || u.kind === "archer") && command.type === "assignUnit")
         throw new Error("Soldados só podem receber ordens de movimento por enquanto.")
       let job: Unit["job"] = { kind: "idle" }
@@ -1271,6 +1423,7 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
     default:
       throw new Error("Comando de vila desconhecido.")
   }
+  recordResourceFlow(s, resourcesBefore, command.type)
 }
 
 export function recruitmentCheck(s: VillageState, amount: number): { reason: string | null; spawn: Point[] } {
@@ -1432,12 +1585,12 @@ function updateCombat(s: VillageState, dt: number) {
   }
 }
 
-export function updateVillage(s: VillageState, dt: number) {
+export function updateVillage(s: VillageState, dt: number, online = true) {
   if (!Number.isFinite(dt) || dt <= 0) return
   // Small fixed steps keep meals, cooperative harvests and movement consistent at ×10.
   while (dt > 0.000001) {
     const step = Math.min(0.2, dt)
-    updateStep(s, step)
+    updateStep(s, step, online)
     dt -= step
   }
 }
@@ -1472,7 +1625,8 @@ function depositStowed(s: VillageState, u: Unit, capacity: Resources) {
   }
   if (Object.keys(u.stowed).length === 0) delete u.stowed
 }
-function updateStep(s: VillageState, dt: number) {
+function updateStep(s: VillageState, dt: number, online: boolean) {
+  const resourcesBefore = { ...s.resources }
   s.economy.elapsed += dt
   s.creatures ??= []
   s.creatureSpawnAt ??= s.economy.elapsed
@@ -1548,10 +1702,18 @@ function updateStep(s: VillageState, dt: number) {
     production.progress = Math.min(production.duration, production.progress + dt)
     if (production.progress + 0.000001 < production.duration) continue
     if (production.item === "soldier" || production.item === "archer") {
-      if (s.units.length >= populationCapacity(s)) continue
+      if (!production.traineeIds && s.units.length >= populationCapacity(s)) continue
       const spawn = approach(building).find((p) => walkable(s, p) && !s.units.some((u) => key(cell(u)) === key(p)))
       if (!spawn) continue
-      s.units.push({
+      const trainee = production.traineeIds && s.units.find((unit) => unit.id === production.traineeIds![0] && unit.job.kind === "training")
+      if (production.traineeIds && !trainee) {
+        production.traineeIds.shift()
+        production.remaining = (production.remaining ?? 1) - 1
+        if (production.remaining <= 0) delete building.production
+        else production.progress = 0
+        continue
+      }
+      const trained: Unit = {
         id: crypto.randomUUID(),
         name: production.item === "archer"
           ? `Arqueiro ${s.units.filter((u) => u.kind === "archer").length + 1}`
@@ -1567,7 +1729,10 @@ function updateStep(s: VillageState, dt: number) {
         facing: "right",
         health: production.item === "archer" ? 55 : 110,
         maxHealth: production.item === "archer" ? 55 : 110,
-      })
+      }
+      if (trainee) Object.assign(trainee, { ...trained, id: trainee.id })
+      else s.units.push(trained)
+      production.traineeIds?.shift()
     } else {
       s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
       s.crafts[production.item] += craftOutput(production.item, building.level).yield
@@ -1593,7 +1758,7 @@ function updateStep(s: VillageState, dt: number) {
       farm.productionLog = farm.productionLog.filter((p) => p.at > cutoff)
   updateCombat(s, dt)
   for (const u of s.units) {
-    if (u.job.kind === "attackCreature" || u.job.kind === "garrison") continue
+    if (u.job.kind === "attackCreature" || u.job.kind === "garrison" || u.job.kind === "training") continue
     if (u.carrying) {
       const { resource, amount } = u.carrying
       const capacity = storageCapacities(s)
@@ -1854,6 +2019,13 @@ function updateStep(s: VillageState, dt: number) {
     }
   }
   s.nodes = s.nodes.filter(occupiesResourceTile)
+  recordResourceFlow(s, resourcesBefore, "produção")
+  const city = cityEconomy(s)
+  city.financeElapsed += dt
+  if (city.financeElapsed + 0.000001 >= FINANCE_INTERVAL) {
+    city.financeElapsed -= FINANCE_INTERVAL
+    financeCycle(s, online)
+  }
 }
 
 const maxBuildingLevel = (kind: Building["kind"]) =>
@@ -1931,11 +2103,11 @@ export function validateVillage(
         !["hero", "villager", "soldier", "archer"].includes(u.kind) ||
         (u.armored !== undefined && (!["soldier", "archer"].includes(u.kind) || typeof u.armored !== "boolean")) ||
         !u.job ||
-        !["idle", "move", "plant", "farm", "gather", "build", "ranch", "attackCreature", "garrison"].includes(u.job.kind) ||
+        !["idle", "move", "plant", "farm", "gather", "build", "ranch", "attackCreature", "garrison", "training"].includes(u.job.kind) ||
         !Array.isArray(u.path) ||
         u.path.some((p) => !finitePoint(p)) ||
         (u.job.kind === "move" && !finitePoint(u.job.destination)) ||
-        ((u.job.kind === "attackCreature" || u.job.kind === "garrison") && typeof u.job.targetId !== "string") ||
+        ((u.job.kind === "attackCreature" || u.job.kind === "garrison" || u.job.kind === "training") && typeof u.job.targetId !== "string") ||
         (u.health !== undefined && (!Number.isFinite(u.health) || u.health < 0 || (u.maxHealth !== undefined && u.health > u.maxHealth))) ||
         (u.maxHealth !== undefined && (!Number.isFinite(u.maxHealth) || u.maxHealth <= 0)) ||
         (u.job.kind === "plant" && (!finitePoint(u.job.destination) || u.kind !== "villager" || !isVillageGround(saved, u.job.destination.x, u.job.destination.y))) ||
@@ -2012,6 +2184,21 @@ export function validateVillage(
       saved.economy.upkeepElapsed >= UPKEEP_INTERVAL ||
       typeof saved.economy.foodShortage !== "boolean" ||
       !validLog(saved.economy.foodIncome) ||
+      (saved.city !== undefined && (
+        !Number.isSafeInteger(saved.city.treasury) || saved.city.treasury < 0 || saved.city.treasury > 1_000_000_000 ||
+        !Object.prototype.hasOwnProperty.call(TAX_RATES, saved.city.taxPolicy) ||
+        !Number.isFinite(saved.city.satisfaction) || saved.city.satisfaction < 0 || saved.city.satisfaction > 100 ||
+        !Number.isFinite(saved.city.trust) || saved.city.trust < 0 || saved.city.trust > 100 ||
+        !Number.isFinite(saved.city.financeElapsed) || saved.city.financeElapsed < 0 || saved.city.financeElapsed >= FINANCE_INTERVAL ||
+        !Number.isSafeInteger(saved.city.unpaidCycles) || saved.city.unpaidCycles < 0 || saved.city.unpaidCycles > 3 ||
+        !Number.isFinite(saved.city.lastTaxChangeAt) ||
+        !Number.isFinite(saved.city.festivalAt) ||
+        !Number.isSafeInteger(saved.city.tradeRevenue) || saved.city.tradeRevenue < 0 || saved.city.tradeRevenue > MARKET_CYCLE_BUDGET ||
+        !saved.city.lastCycle || Object.values(saved.city.lastCycle).some((value) => !Number.isSafeInteger(value) || value < 0) ||
+        !Array.isArray(saved.city.flows) || saved.city.flows.length > 20_000 || saved.city.flows.some((entry) =>
+          !Number.isFinite(entry.at) || entry.at < 0 || !Object.prototype.hasOwnProperty.call(saved.resources, entry.resource) ||
+          !Number.isSafeInteger(entry.delta) || !entry.delta || typeof entry.reason !== "string" || entry.reason.length > 40)
+      )) ||
       saved.buildings.some(
         (b) => b.productionLog && !validLog(b.productionLog),
       ) ||
@@ -2093,6 +2280,9 @@ export function validateVillage(
       )) ||
       saved.buildings.some((b) => b.production && (
         b.construction ||
+        (b.production.traineeIds !== undefined && (!Array.isArray(b.production.traineeIds) ||
+          b.production.traineeIds.some((id) => typeof id !== "string" || !saved.units.some((unit) => unit.id === id && unit.job.kind === "training" && unit.job.targetId === b.id)) ||
+          b.production.traineeIds.length !== (b.production.remaining ?? 1))) ||
         (b.production.remaining !== undefined && (!Number.isInteger(b.production.remaining) || b.production.remaining < 1 || b.production.remaining > 20)) ||
         (b.production.total !== undefined && (!Number.isInteger(b.production.total) || b.production.total < 1 || b.production.total > 20)) ||
         !Number.isFinite(b.production.progress) ||
@@ -2163,6 +2353,15 @@ export function migrateVillage(input: VillageState): VillageState {
     const current = structuredClone(input)
     current.recruitment ??= { remaining: 0, progress: 0 }
     current.creatures ??= []
+    current.city ??= initialCityEconomy()
+    current.city.festivalAt ??= -FINANCE_INTERVAL
+    current.city.tradeRevenue ??= 0
+    const town = current.buildings.find((building) => building.kind === "townCenter")
+    if (town) current.improvements = current.improvements?.filter((item) => {
+      if (item.kind !== "building" || item.buildingId !== town.id) return true
+      town.level = Math.max(town.level, item.targetLevel)
+      return false
+    })
     const firstSpawnNotYetHappened = current.creatureHasSpawned === undefined && current.creatures.length === 0
     current.creatureHasSpawned ??= current.creatures.length > 0
     current.creatureSpawnAt ??= current.economy.elapsed
@@ -2288,6 +2487,7 @@ export function migrateVillage(input: VillageState): VillageState {
 }
 
 function upgradeWorldV4(s: VillageState): VillageState {
+  s.city ??= initialCityEconomy()
   expandVillage(s)
   s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
   s.animalProducts ??= { milk: 0, wool: 0, eggs: 0, feathers: 0 }

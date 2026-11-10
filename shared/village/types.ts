@@ -33,13 +33,27 @@ export interface Building extends Point {
   productionLog?: ProductionSample[]
   farmCycle?: { phase: FarmPhase; progress: number; seedPaid?: boolean }
   construction?: { builderId: string; progress: number; duration: number }
-  production?: { item: CraftItem | "soldier" | "archer"; progress: number; duration: number; remaining?: number; total?: number }
+  production?: { item: CraftItem | "soldier" | "archer"; progress: number; duration: number; remaining?: number; total?: number; traineeIds?: string[] }
   ranch?: { kind: AnimalKind | null; animals: { id: string; kind: AnimalKind; growth: number }[]; breedingElapsed?: number }
   attackProgress?: number
 }
 export interface ProductionSample {
   at: number
   amount: number
+}
+export type TaxPolicy = "exempt" | "low" | "normal" | "high" | "abusive"
+export interface CityEconomy {
+  treasury: number
+  taxPolicy: TaxPolicy
+  satisfaction: number
+  trust: number
+  financeElapsed: number
+  unpaidCycles: number
+  lastTaxChangeAt: number
+  festivalAt: number
+  tradeRevenue: number
+  lastCycle: { taxes: number; wages: number; military: number; paid: number }
+  flows: { at: number; resource: Resource; delta: number; reason: string }[]
 }
 export type Research = "workers" | "agriculture" | "fertilizer" | "irrigation"
 export type Improvement =
@@ -95,6 +109,7 @@ export type Job =
   | { kind: "move"; destination: Point }
   | { kind: "attackCreature"; targetId: string }
   | { kind: "garrison"; targetId: string }
+  | { kind: "training"; targetId: string }
   | { kind: "plant"; destination: Point }
   | { kind: "farm" | "gather" | "build" | "ranch"; targetId: string }
 export interface Unit extends Point {
@@ -170,6 +185,7 @@ export interface VillageState {
     foodShortage: boolean
     foodIncome: ProductionSample[]
   }
+  city?: CityEconomy
 }
 export type VillageCommand =
   | { type: "editVillageMap"; edits: VillageMapEdit[] }
@@ -203,6 +219,7 @@ export type VillageCommand =
   | { type: "attackCreature"; unitId: string; creatureId: string }
   | { type: "stockRanch"; buildingId: string; animal: AnimalKind; amount?: number }
   | { type: "equipSoldier"; unitId: string }
+  | { type: "demobilizeUnit"; unitId: string }
   | {
       type: "sellResource"
       resource: Exclude<Resource, "gold">
@@ -210,6 +227,10 @@ export type VillageCommand =
     }
   | { type: "buyResource"; resource: Exclude<Resource, "gold">; amount: number }
   | { type: "buySeeds"; seed: SeedKind; amount: number }
+  | { type: "setTaxPolicy"; policy: TaxPolicy }
+  | { type: "holdFestival" }
+  | { type: "sellProduct"; item: CraftItem | AnimalProduct; amount: number }
+  | { type: "mintGold"; amount: number }
   | { type: "plantTree"; unitId: string; x: number; y: number }
   | { type: "relocateTownCenter"; x: number; y: number }
   | { type: "recruitVillager"; amount?: number }

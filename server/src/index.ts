@@ -6,7 +6,7 @@ import {
 import { fileURLToPath } from "node:url"
 import { copyFileSync, constants, writeFileSync } from "node:fs"
 import { resolve, join } from "node:path"
-import { execute, restore, snapshot, startGame, stopGame } from "./game"
+import { execute, restore, snapshot, startGame, stopGame, setPlayerConnected } from "./game"
 import { createStorage, readJson, writeJson } from "./storage"
 import { openWorldDatabase } from "./worldStorage"
 import { assets, assetInfo, getAsset, maximumBytes, readAsset, saveAsset } from "./assets"
@@ -186,7 +186,11 @@ const server = createServer(async (request, response) => {
       })
       response.write(`data: ${JSON.stringify(snapshot())}\n\n`)
       clients.add(response)
-      response.on("close", () => clients.delete(response))
+      setPlayerConnected(true)
+      response.on("close", () => {
+        clients.delete(response)
+        setPlayerConnected(clients.size > 0)
+      })
       return
     }
     if (method === "POST" && url.pathname === "/api/commands") {
