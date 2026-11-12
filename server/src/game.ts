@@ -83,6 +83,7 @@ export function execute(command: GameCommand) {
     case "upgradeBarn":
     case "upgradeRanch":
     case "upgradeWeaving":
+    case "upgradeSawmill":
     case "upgradeDefense":
     case "upgradeHouse":
     case "upgradeTownCenter":
@@ -100,6 +101,7 @@ export function execute(command: GameCommand) {
     case "garrisonArcher":
     case "ungarrisonArcher":
     case "attackCreature":
+    case "attackEnemy":
     case "stockRanch":
     case "equipSoldier":
     case "demobilizeUnit":
@@ -180,8 +182,8 @@ export const startGame = () => {
   if (!villageTimer)
     villageTimer = setInterval(() => {
       const state = worldStore.getState()
-      if (!state.isPaused) updateVillage(village, 0.2 * state.timeScale, playerConnected)
-    }, 200)
+      if (!state.isPaused) updateVillage(village, 0.1 * state.timeScale, playerConnected)
+    }, 100)
 }
 export const stopGame = () => {
   gameLoop.stop()

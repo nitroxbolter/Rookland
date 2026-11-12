@@ -6,6 +6,7 @@ import type {
   VillageState,
   Point,
   Building,
+  CraftItem,
   Research,
   Unit,
   ResourceNode,
@@ -14,6 +15,7 @@ import type {
 } from "./types"
 
 export const VILLAGE_SIZE = 80
+export const VILLAGE_HEIGHT = 160
 export const BARN_CAPACITIES: Record<number, Resources> = {
   1: { wood: 500, stone: 300, food: 500, iron: 300, gold: 500 },
   2: { wood: 1000, stone: 600, food: 1200, iron: 600, gold: 1200 },
@@ -97,8 +99,9 @@ export const RECRUIT_SECONDS = 45
 export const UPKEEP_INTERVAL = 600
 export const FINANCE_INTERVAL = 1800
 export const PAYROLL_INTERVAL = 3600
+export const RATION_INTERVAL = 60
 export const DEFAULT_PROVISIONS: Readonly<ProvisionPolicy> = {
-  villagerGold: 20, villagerFood: 40, soldierGold: 20, soldierFood: 80,
+  villagerGold: 20, villagerFood: 50, soldierGold: 20, soldierFood: 100,
 }
 export const PROVISION_LIMITS: Readonly<ProvisionPolicy> = {
   villagerGold: 40, villagerFood: 80, soldierGold: 40, soldierFood: 120,
@@ -128,11 +131,14 @@ export const BUILD_SECONDS = {
   tower: 120,
   blacksmith: 100,
   weaving: 80,
+  sawmill: 80,
   barracks: 120,
   ranch: 45,
 } as const
-export const BUILDING_UNLOCK_LEVEL = { farm: 1, barn: 1, house: 1, well: 1, wall: 1, ranch: 1, gate: 2, tower: 3, blacksmith: 2, weaving: 2, barracks: 2 } as const
+export const BUILDING_UNLOCK_LEVEL = { farm: 1, barn: 1, house: 1, well: 1, wall: 1, ranch: 1, sawmill: 1, gate: 2, tower: 3, blacksmith: 2, weaving: 2, barracks: 2 } as const
 export const CRAFT_RECIPES = {
+  planks: { building: "sawmill", resources: { wood: 8 }, crafts: {}, yield: 4, seconds: 24 },
+  posts: { building: "sawmill", resources: { wood: 10 }, crafts: {}, yield: 3, seconds: 30 },
   nails: { building: "blacksmith", resources: { iron: 8, wood: 2 }, crafts: {}, yield: 5, seconds: 20 },
   cloth: { building: "weaving", resources: { wood: 5 }, crafts: {}, products: { wool: 4 }, yield: 3, seconds: 30 },
   clothing: { building: "weaving", resources: { food: 4 }, crafts: { cloth: 2 }, yield: 1, seconds: 35 },
@@ -154,8 +160,17 @@ export const WEAVING_UPGRADES: Partial<Record<number, {
   5: { name: "Tear Mecânico", cost: { wood: 500, stone: 200, iron: 175, gold: 140 }, tools: 5, timeReduction: 40, clothBonus: 3, clothingBonus: 2 },
 }
 
+export const SAWMILL_UPGRADES = {
+  2: { name: "Serra de Bancada", cost: { wood: 90, stone: 30, iron: 10 }, crafts: { planks: 8, posts: 4 }, timeReduction: 25 },
+  3: { name: "Serra Mecânica", cost: { wood: 160, stone: 80, iron: 45 }, crafts: { planks: 16, posts: 8 }, timeReduction: 45 },
+} as const
+
 export function craftOutput(item: keyof typeof CRAFT_RECIPES, level: number) {
   const recipe = CRAFT_RECIPES[item]
+  if (item === "planks" || item === "posts") {
+    const reduction = level >= 3 ? SAWMILL_UPGRADES[3].timeReduction : level >= 2 ? SAWMILL_UPGRADES[2].timeReduction : 0
+    return { yield: recipe.yield, seconds: Math.ceil(recipe.seconds * (100 - reduction) / 100) }
+  }
   const upgrade = WEAVING_UPGRADES[level]
   if (!upgrade || (item !== "cloth" && item !== "clothing"))
     return { yield: recipe.yield, seconds: recipe.seconds }
@@ -190,6 +205,7 @@ export const MARKET_BUY_RATES = {
 } as const
 export const MARKET_CYCLE_BUDGET = 1000
 export const MARKET_PRODUCT_RATES = {
+  planks: { amount: 8, coins: 3 }, posts: { amount: 6, coins: 3 },
   nails: { amount: 5, coins: 3 }, cloth: { amount: 2, coins: 4 }, clothing: { amount: 1, coins: 6 },
   tools: { amount: 1, coins: 8 }, weapons: { amount: 1, coins: 12 }, armor: { amount: 1, coins: 16 },
   milk: { amount: 10, coins: 2 }, wool: { amount: 10, coins: 3 }, eggs: { amount: 10, coins: 2 }, feathers: { amount: 10, coins: 1 },
@@ -282,16 +298,24 @@ export const BUILDINGS = {
   tower: { name: "Torre", width: 2, height: 2, cost: { wood: 55, stone: 110, iron: 15 } },
   blacksmith: { name: "Ferraria", width: 3, height: 3, cost: { wood: 100, stone: 80, iron: 20 } },
   weaving: { name: "Tecelagem", width: 3, height: 3, cost: { wood: 90, stone: 35 } },
+  sawmill: { name: "Serralheria", width: 3, height: 3, cost: { wood: 55, stone: 20 } },
   barracks: { name: "Quartel", width: 3, height: 3, cost: { wood: 150, stone: 100, iron: 25 } },
   ranch: { name: "Curral", width: 2, height: 2, cost: { wood: 50, stone: 10 } },
 } satisfies Record<
   BuildingKind,
   { name: string; width: number; height: number; cost: Partial<Resources> }
 >
+export const BUILD_CRAFT_COSTS: Partial<Record<BuildingKind, Partial<Record<CraftItem, number>>>> = {
+  gate: { planks: 4, posts: 2 },
+  tower: { planks: 8, posts: 4 },
+  blacksmith: { planks: 6, posts: 3 },
+  weaving: { planks: 6, posts: 3 },
+  barracks: { planks: 12, posts: 6 },
+}
 /** Minimum empty tiles between a resource's root and each structure's footprint. */
 export const BUILDING_RESOURCE_RADIUS: Record<BuildingKind, number> = {
   townCenter: 3, barn: 2, farm: 2, house: 2, well: 2, wall: 1,
-  gate: 2, tower: 3, blacksmith: 2, weaving: 2, barracks: 3, ranch: 2,
+  gate: 2, tower: 3, blacksmith: 2, weaving: 2, sawmill: 2, barracks: 3, ranch: 2,
 }
 export const resourceNearBuilding = (
   point: Point,
@@ -475,10 +499,10 @@ export const inside = (
   p.x < rect.x + rect.width &&
   p.y >= rect.y &&
   p.y < rect.y + rect.height
-export const isLand = (x: number, y: number, size = VILLAGE_SIZE) => {
-  if (x < 1 || y < 1 || x >= size - 1 || y >= size - 1) return false
+export const isLand = (x: number, y: number, width = VILLAGE_SIZE, height = VILLAGE_HEIGHT) => {
+  if (x < 1 || y < 1 || x >= width - 1 || y >= height - 1) return false
   // Rounded shores; the entire interior is available for expansion.
-  const dx = Math.max(0, 4 - Math.min(x, size - 1 - x))
-  const dy = Math.max(0, 4 - Math.min(y, size - 1 - y))
+  const dx = Math.max(0, 4 - Math.min(x, width - 1 - x))
+  const dy = Math.max(0, 4 - Math.min(y, height - 1 - y))
   return dx * dx + dy * dy < 17
 }

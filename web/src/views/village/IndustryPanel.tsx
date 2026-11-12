@@ -9,6 +9,7 @@ import { WorkshopPanel } from "./WorkshopPanel"
 const NAMES: Record<CraftItem, string> = {
   nails: "Pregos", cloth: "Panos", clothing: "Roupas",
   tools: "Ferramentas", weapons: "Armas", armor: "Armaduras",
+  planks: "Tábuas", posts: "Palanques de madeira",
 }
 const afford = (s: VillageState, cost: Partial<Resources>) =>
   Object.entries(cost).every(([resource, amount]) => s.resources[resource as keyof Resources] >= amount)
@@ -18,8 +19,8 @@ export function IndustryPanel({ village, building, selectedUnitId, onDestroyed }
   const [amount, setAmount] = useState(1)
   const production = building.production
   const elapsed = production ? Math.ceil(production.duration - production.progress) : 0
-  const workshop = building.kind === "blacksmith" || building.kind === "weaving"
-  const crafts = village.crafts ?? { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+  const workshop = building.kind === "blacksmith" || building.kind === "weaving" || building.kind === "sawmill"
+  const crafts = village.crafts ?? { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }
   const availableWorkers = village.units.filter((unit) => unit.kind === "villager" && unit.job.kind === "idle").length
   const defenseKind = (["wall", "gate", "tower"] as const).find((kind) => kind === building.kind)
   const defense = (building.kind === "tower" ? 30 : building.kind === "gate" ? 8 : 4) * building.level
@@ -44,7 +45,7 @@ export function IndustryPanel({ village, building, selectedUnitId, onDestroyed }
       </>
     ) : building.kind === "barracks" ? (
       <>
-        <p className="selection-description">Treine soldados de infantaria ou arqueiros. Cada unidade militar ocupa uma vaga e consome 5 comidas a cada 10 minutos.</p>
+        <p className="selection-description">Treine soldados de infantaria ou arqueiros. Cada unidade militar ocupa uma vaga. A ração padrão é de 100 comidas por hora de jogo, cobrada a cada minuto e ajustável na Economia.</p>
         <p>População: {village.units.length}/{populationCapacity(village)} · Aldeões livres: {availableWorkers} · Armas: {crafts.weapons} · Roupas: {crafts.clothing}</p>
         <BatchQuantity value={amount} onChange={setAmount} max={10} />
         <button className={`primary-action${availableWorkers < amount || !afford(village, { food: SOLDIER_COST.food * amount }) || (village.city?.treasury ?? 40) < SOLDIER_COST.gold * amount || crafts.weapons < amount || crafts.clothing < amount ? " is-missing" : ""}`} disabled={!!building.construction || !!production || availableWorkers < amount || crafts.weapons < amount || crafts.clothing < amount || (village.city?.treasury ?? 40) < SOLDIER_COST.gold * amount || !afford(village, { food: SOLDIER_COST.food * amount })} onClick={() => void sendCommand({ type: "trainSoldier", buildingId: building.id, amount })}>

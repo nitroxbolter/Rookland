@@ -34,7 +34,7 @@ const BUILDING_TOOLS: Tool[] = (Object.keys(BUILDINGS) as BuildingKind[]).map((k
   id: `building-${kind}`,
   label: BUILDINGS[kind].name,
   Icon: ({ townCenter: Flag, barn: Warehouse, farm: Sprout, house: Home, well: Droplets, wall: Layers,
-    gate: DoorOpen, tower: Mountain, blacksmith: Pickaxe, weaving: Layers, barracks: Swords, ranch: PawPrint })[kind],
+    gate: DoorOpen, tower: Mountain, blacksmith: Pickaxe, weaving: Layers, sawmill: TreePine, barracks: Swords, ranch: PawPrint })[kind],
   edit: { building: kind },
 }))
 const TOOLS = {

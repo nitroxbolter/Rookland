@@ -7,7 +7,7 @@ import {
 import { sendCommand } from "@/services/gameClient"
 import {
   CRAFT_RECIPES, FORGE_UPGRADES, MAX_FORGE_LEVEL, IMPROVEMENT_SECONDS, RESOURCE_NAMES,
-  WEAVING_UPGRADES, craftOutput,
+  WEAVING_UPGRADES, SAWMILL_UPGRADES, craftOutput,
 } from "../../../../shared/village/config"
 import { townLevel, unlockReason } from "../../../../shared/village/progression"
 import type { Building, CraftItem, Resource, VillageState } from "../../../../shared/village/types"
@@ -32,9 +32,19 @@ const ITEMS: Record<Material, { label: string; Icon: LucideIcon }> = {
   tools: { label: "Ferramentas", Icon: Pickaxe },
   weapons: { label: "Armas", Icon: Swords },
   armor: { label: "Armaduras", Icon: Shield },
+  planks: { label: "Tábuas", Icon: Box },
+  posts: { label: "Palanques de madeira", Icon: TreePine },
 }
 
 const CRAFT_ART: Record<CraftItem, ReactNode> = {
+  planks: <>
+    <path d="M3 10 22 4l7 4-19 6zM3 17l19-6 7 4-19 6zM3 24l19-6 7 4-19 6z" fill="#b77b46" />
+    <path d="m3 10 7 4v3l-7-4zm0 7 7 4v3l-7-4zm0 7 7 4v3l-7-4z" fill="#86532e" />
+  </>,
+  posts: <>
+    <path d="M6 7 10 3l4 4v21H6zM18 7l4-4 4 4v21h-8z" fill="#aa713d" />
+    <path d="M6 7h8m4 0h8M6 16h8m4 0h8" stroke="#e2ac67" />
+  </>,
   nails: <>
     <path d="m5 7 3-3 8 8-3 3zM10 12l4-4 12 12 2 8-8-2z" fill="#9eb6c4" />
     <path d="m22 5 5 4-3 4-5-4zM21 10l4 3-10 13-6 2 1-7z" fill="#e0e8e8" />
@@ -128,11 +138,11 @@ export function WorkshopPanel({ village, building }: { village: VillageState; bu
   }
   const locked = recipeLock(village, selected)
   const ready = canPay(village, cost, batches)
-  const weavingImprovement = building.kind === "weaving" && village.improvements?.some(
+  const workshopImprovement = (building.kind === "weaving" || building.kind === "sawmill") && village.improvements?.some(
     (item) => item.kind === "building" && item.buildingId === building.id,
   )
   const blocked = locked ?? (building.construction ? "Em construção" :
-    weavingImprovement ? "Melhoria em andamento" :
+    workshopImprovement ? "Melhoria em andamento" :
     building.production ? "Produção em andamento" : !ready ? "Faltam materiais" : null)
 
   return <>
@@ -173,8 +183,40 @@ export function WorkshopPanel({ village, building }: { village: VillageState; bu
       </button>
     </section>
     {building.kind === "blacksmith" && <WorkshopUpgrades village={village} construction={!!building.construction} />}
-    {building.kind === "weaving" && <WeavingUpgrade village={village} building={building} improving={!!weavingImprovement} />}
+    {building.kind === "weaving" && <WeavingUpgrade village={village} building={building} improving={!!workshopImprovement} />}
+    {building.kind === "sawmill" && <SawmillUpgrade village={village} building={building} improving={!!workshopImprovement} />}
   </>
+}
+
+function SawmillUpgrade({ village, building, improving }: { village: VillageState; building: Building; improving: boolean }) {
+  const [pending, setPending] = useState(false)
+  const nextLevel = (building.level + 1) as 2 | 3
+  const upgrade = SAWMILL_UPGRADES[nextLevel]
+  const cost: Materials = upgrade ? { ...upgrade.cost, ...upgrade.crafts } : {}
+  const blocked = building.construction ? "Em construção"
+    : improving ? "Melhoria em andamento"
+    : building.production ? "Aguarde a produção"
+    : townLevel(village) < nextLevel ? `Requer Centro N${nextLevel}`
+    : !canPay(village, cost) ? "Faltam materiais" : null
+  return <details className="workshop-upgrades">
+    <summary><ArrowUp size={16} aria-hidden="true" /> Melhorias <ChevronDown size={15} aria-hidden="true" /></summary>
+    <div className="workshop-recipe">
+      <div className="workshop-recipe-heading">
+        <h3>{upgrade?.name ?? "Serralheria completa"}</h3>
+        <span>{upgrade ? `N${nextLevel}` : "N3 · Máximo"}</span>
+      </div>
+      {upgrade && <>
+        <p className="selection-description">Produção {upgrade.timeReduction}% mais rápida que no nível 1.</p>
+        <MaterialChips village={village} cost={cost} />
+        <button className="workshop-make" type="button" disabled={!!blocked || pending}
+          onClick={async () => {
+            setPending(true)
+            try { await sendCommand({ type: "upgradeSawmill", buildingId: building.id }) }
+            finally { setPending(false) }
+          }}><ArrowUp size={16} aria-hidden="true" />{blocked ?? (pending ? "Enviando…" : `Melhorar · ${IMPROVEMENT_SECONDS[nextLevel] / 60} min`)}</button>
+      </>}
+    </div>
+  </details>
 }
 
 function WeavingUpgrade({ village, building, improving }: { village: VillageState; building: Building; improving: boolean }) {

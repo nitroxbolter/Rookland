@@ -11,6 +11,8 @@ import type {
   CraftItem,
   AnimalKind,
   WildCreature,
+  EnemyFaction,
+  EnemyUnit,
   CityEconomy,
   ProvisionPolicy,
 } from "./types"
@@ -29,6 +31,7 @@ import {
   RESOURCE_NODE_AMOUNTS,
   UPGRADE_COSTS,
   VILLAGE_SIZE,
+  VILLAGE_HEIGHT,
   BARN_UPGRADE_COSTS,
   HOUSE_UPGRADE_COSTS,
   TOWN_UPGRADE_COSTS,
@@ -41,6 +44,7 @@ import {
   UPKEEP_INTERVAL,
   FINANCE_INTERVAL,
   PAYROLL_INTERVAL,
+  RATION_INTERVAL,
   TAX_RATES,
   DEFAULT_PROVISIONS,
   PROVISION_LIMITS,
@@ -67,8 +71,10 @@ import {
   IMPROVEMENT_SECONDS,
   BUILD_SECONDS,
   BUILDING_UNLOCK_LEVEL,
+  BUILD_CRAFT_COSTS,
   CRAFT_RECIPES,
   craftOutput,
+  SAWMILL_UPGRADES,
   WEAVING_UPGRADES,
   SOLDIER_COST,
   SOLDIER_SECONDS,
@@ -123,8 +129,8 @@ export function createVillage(): VillageState {
         kind: "farm",
         x: 11,
         y: 18,
-        width: 4,
-        height: 4,
+        width: 2,
+        height: 2,
         level: 1,
         crop: "carrot",
         growth: 0,
@@ -134,7 +140,7 @@ export function createVillage(): VillageState {
     nodes: [],
     seeds: { carrot: 5, wheat: 5, potato: 5, tree: 3 },
     saplings: [],
-    crafts: { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 },
+    crafts: { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 },
     toolLevel: 0,
     weaponLevel: 0,
     armorLevel: 0,
@@ -172,13 +178,32 @@ export function createVillage(): VillageState {
       },
     ],
     creatures: [],
+    enemy: createEnemyFaction(),
     creatureSpawnAt: 0,
     creatureHasSpawned: false,
   }
   expandVillage(s)
   seedResourceRegions(s)
+  seedSouthernResources(s)
   seedFoodBushes(s)
   return s
+}
+
+function createEnemyFaction(): EnemyFaction {
+  const base = { x: 39, y: 125 }
+  const worker = (id: string, x: number, y: number, resource: Resource): EnemyUnit => ({
+    id, kind: "villager", x, y, health: 35, maxHealth: 35, facing: "down",
+    job: "gather", resource, path: [], progress: 0,
+  })
+  return {
+    base, level: 1,
+    resources: { wood: 50, stone: 15, food: 100, iron: 20, gold: 0 },
+    units: [worker("enemy-wood", 37, 129, "wood"), worker("enemy-food", 39, 129, "food"),
+      worker("enemy-stone", 41, 129, "stone"),
+      { id: "enemy-guard-1", kind: "soldier", x: 39, y: 122, health: 110, maxHealth: 110,
+        facing: "down", job: "guard", path: [], progress: 0 }],
+    thinkElapsed: 0, nextDecisionAt: 60,
+  }
 }
 
 function seedFoodBushes(s: VillageState) {
@@ -209,9 +234,9 @@ function seedFoodBushes(s: VillageState) {
 }
 
 function expandVillage(s: VillageState) {
-  if (s.width >= VILLAGE_SIZE && s.height >= VILLAGE_SIZE) return
+  if (s.width >= VILLAGE_SIZE && s.height >= VILLAGE_HEIGHT) return
   const offsetX = Math.floor((VILLAGE_SIZE - s.width) / 2)
-  const offsetY = Math.floor((VILLAGE_SIZE - s.height) / 2)
+  const offsetY = s.height < VILLAGE_SIZE ? Math.floor((VILLAGE_SIZE - s.height) / 2) : 0
   for (const building of s.buildings) {
     building.x += offsetX
     building.y += offsetY
@@ -234,12 +259,13 @@ function expandVillage(s: VillageState) {
     }
   }
   s.width = VILLAGE_SIZE
-  s.height = VILLAGE_SIZE
+  s.height = VILLAGE_HEIGHT
 
 }
 
 const DEPOSIT_AMOUNTS: Partial<Record<ResourceNode["kind"], number>> = {
   rock: RESOURCE_NODE_AMOUNTS.rock, iron: RESOURCE_NODE_AMOUNTS.iron, gold: RESOURCE_NODE_AMOUNTS.gold,
+  berryBush: RESOURCE_NODE_AMOUNTS.berryBush,
 }
 const DEPOSIT_REGEN_SECONDS = 5 * 60
 const occupiesResourceTile = (node: ResourceNode) => node.amount > 0 || node.regeneratesAt !== undefined
@@ -280,6 +306,23 @@ function seedResourceRegions(s: VillageState, includeIron = true) {
           addNode("iron-mine", "iron", 58 + dx, 13 + dy, ((58 + dx) * 7 + (13 + dy) * 3) % 4)
   }
   s.resourceLayout = 2
+}
+
+function seedSouthernResources(s: VillageState) {
+  if (s.nodes.some((node) => node.id.startsWith("south-expansion-"))) return
+  const add = (kind: ResourceNode["kind"], x: number, y: number, variant: number) => {
+    const point = { x, y }
+    if (!isVillageGround(s, x, y) || s.nodes.some((node) => node.x === x && node.y === y) ||
+      s.buildings.some((building) => inside(point, building))) return
+    s.nodes.push({ id: `south-expansion-${kind}-${x}-${y}`, kind, x, y,
+      amount: RESOURCE_NODE_AMOUNTS[kind as keyof typeof RESOURCE_NODE_AMOUNTS] ?? 20, variant })
+  }
+  for (let y = 92; y <= 150; y += 4)
+    for (let x = 7 + (y % 3); x <= 72; x += 5)
+      if ((y < 119 || y > 137) && ((x * 7 + y * 3) % 5 < 2))
+        add("tree", x, y, (x + y) % 5)
+  for (const [x, y, kind] of [[65, 115, "rock"], [67, 118, "rock"], [11, 137, "iron"], [13, 140, "iron"], [59, 145, "gold"], [62, 148, "gold"], [29, 114, "berryBush"], [32, 116, "berryBush"], [50, 138, "berryBush"], [53, 141, "berryBush"]] as const)
+    add(kind, x, y, kind === "rock" ? 0 : (x + y) % 4)
 }
 
 const FIRST_LAYOUT_NODE = /^(west-forest|north-woods|southwest-woods|south-woods|east-woods|stone-quarry|gold-mine)-[0-9]+-[0-9]+$/
@@ -465,7 +508,7 @@ function initialCityEconomy(): CityEconomy {
   return {
     treasury: 40, taxPolicy: "normal", satisfaction: 60, trust: 60,
     financeElapsed: 0, unpaidCycles: 0, lastTaxChangeAt: -600, festivalAt: -FINANCE_INTERVAL, tradeRevenue: 0,
-    payrollElapsed: 0, provisions: { ...DEFAULT_PROVISIONS },
+    payrollElapsed: 0, rationElapsed: 0, rationRemainder: 59, provisions: { ...DEFAULT_PROVISIONS },
     activeSoldierProvision: { gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood },
     lastPayroll: { goldDue: 0, goldPaid: 0, foodDue: 0, foodServed: 0 },
     lastCycle: { taxes: 0, wages: 0, military: 0, paid: 0 }, flows: [],
@@ -514,17 +557,27 @@ function payrollCycle(s: VillageState) {
   const city = cityEconomy(s)
   const due = hourlyProvisionCost(s)
   const goldPaid = Math.min(s.resources.gold, due.gold)
-  const foodServed = Math.min(s.resources.food, due.food)
   s.resources.gold -= goldPaid
+  city.lastPayroll.goldDue = due.gold
+  city.lastPayroll.goldPaid = goldPaid
+  city.activeSoldierProvision.gold = city.provisions.soldierGold * (due.gold ? goldPaid / due.gold : 1)
+  city.unpaidCycles = goldPaid < due.gold ? Math.min(3, city.unpaidCycles + 1) : 0
+  recordResourceFlow(s, { ...s.resources, gold: s.resources.gold + goldPaid }, "salários")
+}
+function rationCycle(s: VillageState) {
+  const city = cityEconomy(s)
+  const hourlyFood = hourlyProvisionCost(s).food
+  const accrued = city.rationRemainder + hourlyFood
+  const foodDue = Math.floor(accrued / 60)
+  city.rationRemainder = accrued % 60
+  const foodServed = Math.min(s.resources.food, foodDue)
   s.resources.food -= foodServed
-  city.lastPayroll = { goldDue: due.gold, goldPaid, foodDue: due.food, foodServed }
-  city.activeSoldierProvision = {
-    gold: city.provisions.soldierGold * (due.gold ? goldPaid / due.gold : 1),
-    food: city.provisions.soldierFood * (due.food ? foodServed / due.food : 1),
-  }
-  city.unpaidCycles = goldPaid < due.gold || foodServed < due.food ? Math.min(3, city.unpaidCycles + 1) : 0
-  s.economy.foodShortage = s.economy.foodShortage || foodServed < due.food
-  recordResourceFlow(s, { ...s.resources, gold: s.resources.gold + goldPaid, food: s.resources.food + foodServed }, "salários e rações")
+  city.lastPayroll.foodDue = foodDue
+  city.lastPayroll.foodServed = foodServed
+  if (foodDue)
+    city.activeSoldierProvision.food = city.provisions.soldierFood * foodServed / foodDue
+  s.economy.foodShortage = s.economy.foodShortage || foodServed < foodDue
+  recordResourceFlow(s, { ...s.resources, food: s.resources.food + foodServed }, "rações")
 }
 function spendCrafts(s: VillageState, cost: Partial<Record<CraftItem, number>>) {
   for (const [kind, amount] of Object.entries(cost))
@@ -545,6 +598,16 @@ export function placementError(
   if (!spec || !Number.isInteger(x) || !Number.isInteger(y))
     return "Posição inválida."
   const rect = { x, y, width: spec.width, height: spec.height }
+  if (s.enemy) {
+    const rivalSites = [
+      { x: s.enemy.base.x - 2, y: s.enemy.base.y - 2, width: 4, height: 4 },
+      ...(s.enemy.level >= 2 ? [{ x: 52, y: 132, width: 3, height: 3 }] : []),
+      ...(s.enemy.level >= 3 ? [{ x: 24, y: 132, width: 3, height: 3 }] : []),
+    ]
+    if (rivalSites.some((site) => x < site.x + site.width && x + spec.width > site.x &&
+      y < site.y + site.height && y + spec.height > site.y))
+      return "Esse espaço pertence ao acampamento rival."
+  }
   for (let py = y; py < y + spec.height; py++)
     for (let px = x; px < x + spec.width; px++) {
       if (!isVillageGround(s, px, py)) return "Construa em terra firme e plana."
@@ -784,6 +847,17 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       unit.work = 0
       break
     }
+    case "attackEnemy": {
+      const unit = s.units.find((candidate) => candidate.id === command.unitId)
+      const target = s.enemy?.units.find((candidate) => candidate.id === command.enemyId)
+      if (!unit || !target) throw new Error("Selecione uma unidade e um inimigo vivo.")
+      if (unit.job.kind === "garrison") throw new Error("Retire o arqueiro da torre antes de atacar.")
+      unit.job = { kind: "attackEnemy", targetId: target.id }
+      unit.path = []
+      unit.status = "walking"
+      unit.work = 0
+      break
+    }
     case "build": {
       if (!Object.prototype.hasOwnProperty.call(BUILDING_UNLOCK_LEVEL, command.kind))
         throw new Error("Construção inválida.")
@@ -807,7 +881,12 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       const site = { x: command.x, y: command.y, width: spec.width, height: spec.height }
       if (findPath(s, builder, approach(site)) === null)
         throw new Error("O aldeão não consegue chegar ao local da construção.")
+      const craftedCost = BUILD_CRAFT_COSTS[command.kind] ?? {}
+      for (const [kind, amount] of Object.entries(craftedCost))
+        if ((s.crafts?.[kind as CraftItem] ?? 0) < amount)
+          throw new Error("Faltam tábuas ou palanques produzidos na serralheria.")
       spend(s, BUILDINGS[command.kind].cost)
+      spendCrafts(s, craftedCost)
       if (plantedCrop) s.seeds[plantedCrop]--
       const id = crypto.randomUUID()
       s.buildings.push({
@@ -959,6 +1038,28 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       })
       break
     }
+    case "upgradeSawmill": {
+      const workshop = s.buildings.find((building) => building.id === command.buildingId && building.kind === "sawmill")
+      if (!workshop || workshop.construction) throw new Error("Termine a construção da serralheria primeiro.")
+      if (workshop.production) throw new Error("Aguarde a produção da serralheria terminar.")
+      if (s.improvements?.some((item) => item.kind === "building" && item.buildingId === workshop.id))
+        throw new Error("Esta serralheria já tem uma melhoria em andamento.")
+      const targetLevel = (workshop.level + 1) as 2 | 3
+      const upgrade = SAWMILL_UPGRADES[targetLevel]
+      if (!upgrade) throw new Error("Serralheria no nível máximo.")
+      if (townLevel(s) < targetLevel) throw new Error(`Requer Centro da Vila nível ${targetLevel}.`)
+      for (const [kind, amount] of Object.entries(upgrade.crafts))
+        if ((s.crafts?.[kind as CraftItem] ?? 0) < amount)
+          throw new Error("Faltam tábuas ou palanques para a melhoria.")
+      spend(s, upgrade.cost)
+      spendCrafts(s, upgrade.crafts)
+      ;(s.improvements ??= []).push({
+        kind: "building", buildingId: workshop.id, targetLevel,
+        startedAt: s.economy.elapsed,
+        finishAt: s.economy.elapsed + IMPROVEMENT_SECONDS[targetLevel],
+      })
+      break
+    }
     case "upgradeDefense": {
       const defense = s.buildings.find((building) =>
         building.id === command.buildingId && ["wall", "gate", "tower"].includes(building.kind))
@@ -1055,7 +1156,7 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
     }
     case "demolishBuilding": {
       const building = s.buildings.find((b) => b.id === command.buildingId &&
-        ["wall", "gate", "tower", "blacksmith", "weaving", "barracks", "ranch"].includes(b.kind))
+        ["wall", "gate", "tower", "blacksmith", "weaving", "sawmill", "barracks", "ranch"].includes(b.kind))
       if (!building) throw new Error("Construção não encontrada.")
       for (const unit of s.units)
         if (unit.job.kind === "training" && unit.job.targetId === building.id) {
@@ -1080,9 +1181,9 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (!workshop || workshop.kind !== recipe.building || workshop.construction)
         throw new Error("Oficina indisponível para este item.")
       if (workshop.production) throw new Error("Esta oficina já está produzindo.")
-      if (workshop.kind === "weaving" && s.improvements?.some((item) => item.kind === "building" && item.buildingId === workshop.id))
-        throw new Error("A tecelagem está sendo melhorada.")
-      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+      if ((workshop.kind === "weaving" || workshop.kind === "sawmill") && s.improvements?.some((item) => item.kind === "building" && item.buildingId === workshop.id))
+        throw new Error("A oficina está sendo melhorada.")
+      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }
       for (const [kind, amount] of Object.entries(recipe.crafts))
         if (s.crafts[kind as CraftItem] < amount * (command.amount ?? 1))
           throw new Error("Faltam materiais produzidos nas oficinas.")
@@ -1188,7 +1289,7 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
         (candidate.kind === "soldier" || candidate.kind === "archer"))
       if (!unit) throw new Error("Unidade militar não encontrada.")
       if (unit.job.kind === "garrison") throw new Error("Retire o arqueiro da torre antes de desmobilizar.")
-      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }
       s.crafts.weapons++
       s.crafts.clothing++
       if (unit.armored) s.crafts.armor++
@@ -1219,12 +1320,12 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (s.resources[command.resource] < command.amount)
         throw new Error("Recursos insuficientes para vender.")
       const gold = (command.amount / quote.amount) * quote.gold
-      if (!Number.isSafeInteger(gold) || cityEconomy(s).treasury + gold > 1_000_000_000)
-        throw new Error("Tesouro no limite para esta venda.")
+      if (!Number.isSafeInteger(gold) || s.resources.gold + gold > storageCapacities(s).gold)
+        throw new Error("Sem espaço para o ouro desta venda.")
       if (cityEconomy(s).tradeRevenue + gold > MARKET_CYCLE_BUDGET)
         throw new Error("A caravana esgotou seu orçamento. Aguarde o próximo ciclo financeiro.")
       s.resources[command.resource] -= command.amount
-      cityEconomy(s).treasury += gold
+      s.resources.gold += gold
       cityEconomy(s).tradeRevenue += gold
       break
     }
@@ -1236,7 +1337,7 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
         throw new Error(`Venda em lotes de ${quote.amount}.`)
       const coins = command.amount / quote.amount * quote.coins
       const city = cityEconomy(s)
-      if (city.tradeRevenue + coins > MARKET_CYCLE_BUDGET || city.treasury + coins > 1_000_000_000)
+      if (city.tradeRevenue + coins > MARKET_CYCLE_BUDGET || s.resources.gold + coins > storageCapacities(s).gold)
         throw new Error("A caravana esgotou seu orçamento para este ciclo.")
       if (command.item in (s.crafts ?? {})) {
         const item = command.item as CraftItem
@@ -1247,22 +1348,12 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
         if ((s.animalProducts?.[item] ?? 0) < command.amount) throw new Error("Produtos animais insuficientes.")
         s.animalProducts![item] -= command.amount
       }
-      city.treasury += coins
+      s.resources.gold += coins
       city.tradeRevenue += coins
       break
     }
     case "mintGold": {
-      requireUnlock({ kind: "market" })
-      if (!Number.isSafeInteger(command.amount) || command.amount <= 0 || command.amount % 10 !== 0)
-        throw new Error("Troque ouro em lotes de 10.")
-      if (s.resources.gold < command.amount) throw new Error("Ouro minerado insuficiente.")
-      const city = cityEconomy(s)
-      if (city.tradeRevenue + command.amount > MARKET_CYCLE_BUDGET || city.treasury + command.amount > 1_000_000_000)
-        throw new Error("A casa de câmbio esgotou a cota deste ciclo.")
-      s.resources.gold -= command.amount
-      city.treasury += command.amount
-      city.tradeRevenue += command.amount
-      break
+      throw new Error("O mercado agora usa diretamente o ouro minerado.")
     }
     case "buyResource": {
       requireUnlock({ kind: "market" })
@@ -1271,10 +1362,10 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (!Number.isSafeInteger(command.amount) || command.amount <= 0 || command.amount % rate.amount !== 0)
         throw new Error(`Compra em lotes de ${rate.amount} recursos.`)
       const gold = (command.amount / rate.amount) * rate.gold
-      if (cityEconomy(s).treasury < gold) throw new Error("Moedas insuficientes para esta compra.")
+      if (s.resources.gold < gold) throw new Error("Ouro insuficiente para esta compra.")
       if (command.amount > storageCapacities(s)[command.resource] - s.resources[command.resource])
         throw new Error("Não há espaço no celeiro para essa quantidade.")
-      cityEconomy(s).treasury -= gold
+      s.resources.gold -= gold
       s.resources[command.resource] += command.amount
       break
     }
@@ -1286,8 +1377,8 @@ export function executeVillage(s: VillageState, command: VillageCommand) {
       if (!Number.isSafeInteger(command.amount) || command.amount <= 0)
         throw new Error("Quantidade de sementes inválida.")
       const gold = command.amount * SEED_PRICES[command.seed]
-      if (cityEconomy(s).treasury < gold) throw new Error("Moedas insuficientes para comprar sementes.")
-      cityEconomy(s).treasury -= gold
+      if (s.resources.gold < gold) throw new Error("Ouro insuficiente para comprar sementes.")
+      s.resources.gold -= gold
       s.seeds[command.seed] += command.amount
       break
     }
@@ -1556,6 +1647,35 @@ function updateCombat(s: VillageState, dt: number) {
     }
   }
 
+  for (const unit of s.units) {
+    if (unit.job.kind !== "attackEnemy") continue
+    const targetId = unit.job.targetId
+    const target = s.enemy?.units.find((candidate) => candidate.id === targetId)
+    if (!target) { unit.job = { kind: "idle" }; unit.path = []; unit.status = "idle"; continue }
+    const range = unit.kind === "archer" ? 5 : 1.25
+    if (distance(unit, target) <= range) {
+      unit.status = "working"
+      unit.facing = target.x < unit.x ? "left" : target.x > unit.x ? "right" : target.y < unit.y ? "up" : "down"
+      unit.work += dt
+      const rate = unit.kind === "archer" ? 1.1 : 1.35
+      while (unit.work >= rate && target.health > 0) {
+        unit.work -= rate
+        target.health = Math.max(0, target.health - (unit.kind === "soldier" || unit.kind === "archer"
+          ? soldierDamage(s, unit.kind) : unit.kind === "hero" ? 12 : 4))
+        s.enemy!.hostileTo = unit.id
+        for (const guard of s.enemy!.units) {
+          if (guard.kind === "villager" || guard.health <= 0 || distance(guard, target) > 8) continue
+          guard.job = "defend"
+          guard.targetId = unit.id
+          guard.path = []
+        }
+      }
+    } else {
+      unit.status = "walking"
+      travel(s, unit, neighbors(target).filter((point) => walkable(s, point)), dt)
+    }
+  }
+
   for (const tower of s.buildings.filter((building) => building.kind === "tower" && !building.construction)) {
     const archers = s.units.filter((unit) => unit.kind === "archer" && unit.job.kind === "garrison" && unit.job.targetId === tower.id)
     if (!archers.length) continue
@@ -1615,6 +1735,133 @@ function updateCombat(s: VillageState, dt: number) {
     }
     s.creatures = creatures.filter((creature) => !deadCreatures.has(creature.id))
     if (!s.creatures.length) s.creatureSpawnAt = s.economy.elapsed + 300
+  }
+}
+
+function enemyTravel(s: VillageState, unit: EnemyUnit, goals: Point[], speed = 1): boolean {
+  if (goals.some((goal) => distance(unit, goal) < 0.01)) return true
+  const destination = unit.path[unit.path.length - 1]
+  if (destination && !goals.some((goal) => key(goal) === key(destination))) unit.path = []
+  if (!unit.path.length) unit.path = findPath(s, unit, goals) ?? []
+  if (!unit.path.length) return false
+  let budget = speed
+  while (unit.path.length && budget > 0) {
+    const next = unit.path[0]
+    if (Math.abs(next.x - unit.x) < 0.001) unit.x = next.x
+    if (Math.abs(next.y - unit.y) < 0.001) unit.y = next.y
+    const remaining = distance(unit, next)
+    if (remaining < 0.001) { unit.path.shift(); continue }
+    if (next.x !== unit.x) unit.facing = next.x > unit.x ? "right" : "left"
+    else unit.facing = next.y > unit.y ? "down" : "up"
+    const amount = Math.min(remaining, budget)
+    if (next.x !== unit.x) unit.x += Math.sign(next.x - unit.x) * amount
+    else unit.y += Math.sign(next.y - unit.y) * amount
+    budget -= amount
+    if (distance(unit, next) < 0.001) {
+      unit.x = next.x
+      unit.y = next.y
+      unit.path.shift()
+    }
+  }
+  return goals.some((goal) => distance(unit, goal) < 0.01)
+}
+
+function updateEnemyFaction(s: VillageState, dt: number) {
+  const enemy = s.enemy
+  if (!enemy) return
+  enemy.units = enemy.units.filter((unit) => unit.health > 0)
+  if (enemy.hostileTo && !s.units.some((unit) => unit.id === enemy.hostileTo && unit.health! > 0 && distance(unit, enemy.base) <= 30))
+    delete enemy.hostileTo
+  enemy.thinkElapsed += dt
+  if (enemy.thinkElapsed + 0.000001 >= 1)
+    enemy.thinkElapsed = Math.max(0, enemy.thinkElapsed - 1)
+
+  for (const unit of enemy.units) {
+    if (unit.kind !== "villager") {
+      const target = unit.job === "defend" && unit.targetId
+        ? s.units.find((candidate) => candidate.id === unit.targetId && (candidate.health ?? 1) > 0 && distance(candidate, enemy.base) <= 30)
+        : undefined
+      if (!target) {
+        unit.job = "guard"
+        delete unit.targetId
+        const home = { x: enemy.base.x + (unit.id.charCodeAt(unit.id.length - 1) % 3) - 1, y: enemy.base.y - 3 }
+        enemyTravel(s, unit, [home], 1.2 * dt)
+        unit.progress = 0
+        continue
+      }
+      unit.job = "defend"
+      if (distance(unit, target) <= (unit.kind === "archer" ? 5 : 1.3)) {
+        unit.path = []
+        unit.progress += dt
+        if (unit.progress + 0.000001 >= 2) {
+          unit.progress = Math.max(0, unit.progress - 2)
+          target.health = Math.max(0, (target.health ?? target.maxHealth ?? 35) - (unit.kind === "archer" ? 12 : 9))
+        }
+      } else {
+        unit.progress = 0
+        enemyTravel(s, unit, neighbors(cell(target)).filter((point) => walkable(s, point)), 1.2 * dt)
+      }
+      continue
+    }
+
+    if (unit.carrying || enemy.hostileTo) {
+      unit.job = "return"
+      if (enemyTravel(s, unit, [enemy.base], dt)) {
+        if (unit.carrying) enemy.resources[unit.carrying.resource] += unit.carrying.amount
+        delete unit.carrying
+        delete unit.targetId
+        unit.path = []
+        unit.job = "gather"
+      }
+      continue
+    }
+    unit.job = "gather"
+    let node = unit.targetId ? s.nodes.find((candidate) => candidate.id === unit.targetId && candidate.amount > 0) : undefined
+    if (!node) {
+      node = s.nodes.filter((candidate) => candidate.y >= VILLAGE_SIZE + 5 && candidate.amount > 0 &&
+        NODE_RESOURCE[candidate.kind] === unit.resource).sort((a, b) => distance(a, unit) - distance(b, unit))[0]
+      unit.targetId = node?.id
+      unit.path = []
+    }
+    if (!node) continue
+    const goals = neighbors(node).filter((point) => walkable(s, point))
+    if (!enemyTravel(s, unit, goals, dt)) continue
+    unit.progress += dt
+    if (unit.progress + 0.000001 < 5) continue
+    unit.progress = Math.max(0, unit.progress - 5)
+    const amount = Math.min(unit.resource === "stone" || unit.resource === "iron" || unit.resource === "gold" ? 3 : 5, node.amount)
+    node.amount -= amount
+    if (node.amount === 0 && DEPOSIT_AMOUNTS[node.kind] !== undefined)
+      node.regeneratesAt = s.economy.elapsed + DEPOSIT_REGEN_SECONDS
+    unit.carrying = { resource: unit.resource!, amount }
+    unit.job = "return"
+    unit.path = []
+  }
+
+  if (s.economy.elapsed + 0.000001 < enemy.nextDecisionAt) return
+  enemy.nextDecisionAt = s.economy.elapsed + 60
+  const spend = (cost: Partial<Resources>) => {
+    if (Object.entries(cost).some(([resource, amount]) => enemy.resources[resource as Resource] < amount)) return false
+    for (const [resource, amount] of Object.entries(cost)) enemy.resources[resource as Resource] -= amount
+    return true
+  }
+  if (enemy.level === 1 && spend({ wood: 40, stone: 10, food: 40 })) {
+    enemy.level = 2
+    enemy.units.push({ id: "enemy-iron", kind: "villager", x: enemy.base.x + 2, y: enemy.base.y + 4,
+      health: 35, maxHealth: 35, facing: "down", job: "gather", resource: "iron", path: [], progress: 0 })
+  } else if (enemy.level === 2 && spend({ wood: 80, stone: 40, iron: 20, food: 80 })) {
+    enemy.level = 3
+    enemy.units.push({ id: "enemy-gold", kind: "villager", x: enemy.base.x - 2, y: enemy.base.y + 4,
+      health: 35, maxHealth: 35, facing: "down", job: "gather", resource: "gold", path: [], progress: 0 })
+  }
+  const guards = enemy.units.filter((unit) => unit.kind !== "villager").length
+  const guardLimit = enemy.level === 1 ? 2 : enemy.level === 2 ? 4 : 9
+  if (guards < guardLimit && spend({ wood: 12, food: 20, iron: 5 })) {
+    const kind = enemy.level >= 2 && guards % 3 === 2 ? "archer" : "soldier"
+    enemy.units.push({ id: `enemy-guard-${Math.floor(s.economy.elapsed)}-${guards}`, kind,
+      x: enemy.base.x + guards % 3 - 1, y: enemy.base.y - 3,
+      health: kind === "archer" ? 55 : 110, maxHealth: kind === "archer" ? 55 : 110,
+      facing: "down", job: "guard", path: [], progress: 0 })
   }
 }
 
@@ -1767,7 +2014,7 @@ function updateStep(s: VillageState, dt: number, online: boolean) {
       else s.units.push(trained)
       production.traineeIds?.shift()
     } else {
-      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+      s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }
       s.crafts[production.item] += craftOutput(production.item, building.level).yield
     }
     production.remaining = (production.remaining ?? 1) - 1
@@ -1790,8 +2037,9 @@ function updateStep(s: VillageState, dt: number, online: boolean) {
     if (farm.productionLog)
       farm.productionLog = farm.productionLog.filter((p) => p.at > cutoff)
   updateCombat(s, dt)
+  updateEnemyFaction(s, dt)
   for (const u of s.units) {
-    if (u.job.kind === "attackCreature" || u.job.kind === "garrison" || u.job.kind === "training") continue
+    if (u.job.kind === "attackCreature" || u.job.kind === "attackEnemy" || u.job.kind === "garrison" || u.job.kind === "training") continue
     const gatheringTarget = u.job.kind === "gather" ? u.job.targetId : null
     if (u.gathering && (!gatheringTarget ||
       !s.nodes.some((node) => node.id === gatheringTarget && node.amount > 0))) {
@@ -2073,6 +2321,11 @@ function updateStep(s: VillageState, dt: number, online: boolean) {
     city.payrollElapsed = Math.max(0, city.payrollElapsed - PAYROLL_INTERVAL)
     payrollCycle(s)
   }
+  city.rationElapsed += dt
+  if (city.rationElapsed + 0.000001 >= RATION_INTERVAL) {
+    city.rationElapsed = Math.max(0, city.rationElapsed - RATION_INTERVAL)
+    rationCycle(s)
+  }
 }
 
 const maxBuildingLevel = (kind: Building["kind"]) =>
@@ -2086,7 +2339,7 @@ export function validateVillage(
     (saved.version !== 4 &&
       !(allowLegacy && [1, 2, 3].includes(Number(saved.version)))) ||
     (saved.width !== VILLAGE_SIZE && !(allowLegacy && saved.width === 32)) ||
-    (saved.height !== VILLAGE_SIZE && !(allowLegacy && saved.height === 32)) ||
+    (saved.height !== VILLAGE_HEIGHT && !(allowLegacy && (saved.height === 32 || saved.height === VILLAGE_SIZE))) ||
     !Array.isArray(saved.units) ||
     !Array.isArray(saved.buildings) ||
     !Array.isArray(saved.nodes) ||
@@ -2107,8 +2360,8 @@ export function validateVillage(
     Number.isFinite(p.y) &&
     p.x >= 0 &&
     p.y >= 0 &&
-    p.x < VILLAGE_SIZE &&
-    p.y < VILLAGE_SIZE
+    p.x < saved.width &&
+    p.y < saved.height
   if (
     saved.buildings.some(
       (b) =>
@@ -2150,11 +2403,11 @@ export function validateVillage(
         !["hero", "villager", "soldier", "archer"].includes(u.kind) ||
         (u.armored !== undefined && (!["soldier", "archer"].includes(u.kind) || typeof u.armored !== "boolean")) ||
         !u.job ||
-        !["idle", "move", "plant", "farm", "gather", "build", "ranch", "attackCreature", "garrison", "training"].includes(u.job.kind) ||
+        !["idle", "move", "plant", "farm", "gather", "build", "ranch", "attackCreature", "attackEnemy", "garrison", "training"].includes(u.job.kind) ||
         !Array.isArray(u.path) ||
         u.path.some((p) => !finitePoint(p)) ||
         (u.job.kind === "move" && !finitePoint(u.job.destination)) ||
-        ((u.job.kind === "attackCreature" || u.job.kind === "garrison" || u.job.kind === "training") && typeof u.job.targetId !== "string") ||
+        ((u.job.kind === "attackCreature" || u.job.kind === "attackEnemy" || u.job.kind === "garrison" || u.job.kind === "training") && typeof u.job.targetId !== "string") ||
         (u.health !== undefined && (!Number.isFinite(u.health) || u.health < 0 || (u.maxHealth !== undefined && u.health > u.maxHealth))) ||
         (u.maxHealth !== undefined && (!Number.isFinite(u.maxHealth) || u.maxHealth <= 0)) ||
         (u.job.kind === "plant" && (!finitePoint(u.job.destination) || u.kind !== "villager" || !isVillageGround(saved, u.job.destination.x, u.job.destination.y))) ||
@@ -2181,6 +2434,20 @@ export function validateVillage(
                 (amount as number) <= 0,
             ))),
     ) ||
+    (saved.enemy !== undefined && (!finitePoint(saved.enemy.base) || ![1, 2, 3].includes(saved.enemy.level) ||
+      !Number.isFinite(saved.enemy.thinkElapsed) || saved.enemy.thinkElapsed < 0 || saved.enemy.thinkElapsed >= 1 ||
+      !Number.isFinite(saved.enemy.nextDecisionAt) || saved.enemy.nextDecisionAt < 0 ||
+      (saved.enemy.hostileTo !== undefined && typeof saved.enemy.hostileTo !== "string") ||
+      !saved.enemy.resources || (Object.keys(saved.resources) as Resource[]).some((resource) =>
+        !Number.isSafeInteger(saved.enemy!.resources[resource]) || saved.enemy!.resources[resource] < 0) ||
+      !Array.isArray(saved.enemy.units) || saved.enemy.units.some((unit) =>
+        !finitePoint(unit) || typeof unit.id !== "string" || !["villager", "soldier", "archer"].includes(unit.kind) ||
+        !["gather", "return", "guard", "defend"].includes(unit.job) ||
+        !Number.isFinite(unit.health) || unit.health < 0 || !Number.isFinite(unit.maxHealth) || unit.maxHealth <= 0 || unit.health > unit.maxHealth ||
+        !Number.isFinite(unit.progress) || unit.progress < 0 || !Array.isArray(unit.path) || unit.path.some((point) => !finitePoint(point)) ||
+        (unit.resource !== undefined && !Object.prototype.hasOwnProperty.call(saved.resources, unit.resource)) ||
+        (unit.carrying !== undefined && (!Object.prototype.hasOwnProperty.call(saved.resources, unit.carrying.resource) ||
+          !Number.isSafeInteger(unit.carrying.amount) || unit.carrying.amount <= 0))))) ||
     (saved.creatures !== undefined && (!Array.isArray(saved.creatures) || saved.creatures.some((creature) =>
       !finitePoint(creature) || typeof creature.id !== "string" || !["wolf", "bear"].includes(creature.kind) ||
       !Number.isFinite(creature.health) || creature.health < 0 || !Number.isFinite(creature.maxHealth) || creature.maxHealth <= 0 ||
@@ -2242,6 +2509,8 @@ export function validateVillage(
         !Number.isFinite(saved.city.trust) || saved.city.trust < 0 || saved.city.trust > 100 ||
         !Number.isFinite(saved.city.financeElapsed) || saved.city.financeElapsed < 0 || saved.city.financeElapsed >= FINANCE_INTERVAL ||
         (!allowLegacy && (!Number.isFinite(saved.city.payrollElapsed) || saved.city.payrollElapsed < 0 || saved.city.payrollElapsed >= PAYROLL_INTERVAL ||
+          !Number.isFinite(saved.city.rationElapsed) || saved.city.rationElapsed < 0 || saved.city.rationElapsed >= RATION_INTERVAL ||
+          !Number.isSafeInteger(saved.city.rationRemainder) || saved.city.rationRemainder < 0 || saved.city.rationRemainder >= 60 ||
           !saved.city.provisions || (Object.keys(PROVISION_LIMITS) as (keyof ProvisionPolicy)[]).some((key) =>
             !Number.isSafeInteger(saved.city!.provisions[key]) || saved.city!.provisions[key] < 0 || saved.city!.provisions[key] > PROVISION_LIMITS[key]) ||
           !saved.city.activeSoldierProvision || !Number.isFinite(saved.city.activeSoldierProvision.gold) ||
@@ -2382,7 +2651,7 @@ export function validateVillage(
               ![2, 3, 4, 5, 6, 7, 8].includes(item.targetLevel) ||
               building.kind === "well" ||
               item.targetLevel > maxBuildingLevel(building.kind) ||
-              (building.kind === "weaving" && !!building.production) ||
+              ((building.kind === "weaving" || building.kind === "sawmill") && !!building.production) ||
               building.level !== item.targetLevel - 1 ||
               saved.improvements!.some((other) => other !== item && other.kind === "building" && other.buildingId === item.buildingId)
           })))
@@ -2413,10 +2682,19 @@ export function migrateVillage(input: VillageState): VillageState {
     current.creatures ??= []
     current.city ??= initialCityEconomy()
     current.city.payrollElapsed ??= 0
+    const legacyRations = current.city.rationElapsed === undefined
+    current.city.rationElapsed ??= 0
+    current.city.rationRemainder ??= 59
     current.city.provisions ??= { ...DEFAULT_PROVISIONS }
+    if (legacyRations && current.city.provisions.villagerFood === 40 && current.city.provisions.soldierFood === 80) {
+      current.city.provisions.villagerFood = DEFAULT_PROVISIONS.villagerFood
+      current.city.provisions.soldierFood = DEFAULT_PROVISIONS.soldierFood
+    }
     current.city.activeSoldierProvision ??= {
       gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood,
     }
+    if (legacyRations && current.city.activeSoldierProvision.food === 80 && current.city.provisions.soldierFood === 100)
+      current.city.activeSoldierProvision.food = 100
     current.city.lastPayroll ??= { goldDue: 0, goldPaid: 0, foodDue: 0, foodServed: 0 }
     for (const node of current.nodes)
       if (node.kind === "tree") node.amount = Math.min(node.amount, RESOURCE_NODE_AMOUNTS.tree)
@@ -2450,7 +2728,7 @@ export function migrateVillage(input: VillageState): VillageState {
       if (unit.job.kind === "farm") unit.path = []
     current.seeds ??= { carrot: 5, wheat: 5, potato: 5, tree: 3 }
     current.saplings ??= []
-    current.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+    current.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }; current.crafts.planks ??= 0; current.crafts.posts ??= 0
     current.animalProducts ??= { milk: 0, wool: 0, eggs: 0, feathers: 0 }
     current.animalProducts.eggs ??= 0
     current.animalProducts.feathers ??= 0
@@ -2467,6 +2745,8 @@ export function migrateVillage(input: VillageState): VillageState {
       if (farm.farmCycle) farm.farmCycle.seedPaid = true
     removeUnusedStarterBarn(current)
     expandVillage(current)
+    seedSouthernResources(current)
+    current.enemy ??= createEnemyFaction()
     seedFoodBushes(current)
     migrateResourceRegions(current)
     const removed = new Set(
@@ -2555,15 +2835,28 @@ export function migrateVillage(input: VillageState): VillageState {
 function upgradeWorldV4(s: VillageState): VillageState {
   s.city ??= initialCityEconomy()
   s.city.payrollElapsed ??= 0
+  const legacyRations = s.city.rationElapsed === undefined
+  s.city.rationElapsed ??= 0
+  s.city.rationRemainder ??= 59
   s.city.provisions ??= { ...DEFAULT_PROVISIONS }
+  if (legacyRations && s.city.provisions.villagerFood === 40 && s.city.provisions.soldierFood === 80) {
+    s.city.provisions.villagerFood = DEFAULT_PROVISIONS.villagerFood
+    s.city.provisions.soldierFood = DEFAULT_PROVISIONS.soldierFood
+  }
   s.city.activeSoldierProvision ??= {
     gold: DEFAULT_PROVISIONS.soldierGold, food: DEFAULT_PROVISIONS.soldierFood,
   }
+  if (legacyRations && s.city.activeSoldierProvision.food === 80 && s.city.provisions.soldierFood === 100)
+    s.city.activeSoldierProvision.food = 100
   s.city.lastPayroll ??= { goldDue: 0, goldPaid: 0, foodDue: 0, foodServed: 0 }
   for (const node of s.nodes)
     if (node.kind === "tree") node.amount = Math.min(node.amount, RESOURCE_NODE_AMOUNTS.tree)
   expandVillage(s)
-  s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+  seedSouthernResources(s)
+  s.enemy ??= createEnemyFaction()
+  s.crafts ??= { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }
+  s.crafts.planks ??= 0
+  s.crafts.posts ??= 0
   s.animalProducts ??= { milk: 0, wool: 0, eggs: 0, feathers: 0 }
   s.animalProducts.eggs ??= 0
   s.animalProducts.feathers ??= 0

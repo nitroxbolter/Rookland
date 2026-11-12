@@ -10,7 +10,7 @@ const inBounds = (map: MapSize, x: number, y: number) =>
   Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < map.width && y < map.height
 
 function defaultMapTile(map: MapSize, x: number, y: number): VillageMapTile {
-  return { surface: isLand(x, y, map.width) ? "grass" : "water", elevation: 0 }
+  return { surface: isLand(x, y, map.width, map.height) ? "grass" : "water", elevation: 0 }
 }
 
 export function mapTileAt(map: MapTerrain, x: number, y: number): VillageMapTile {
@@ -20,7 +20,7 @@ export function mapTileAt(map: MapTerrain, x: number, y: number): VillageMapTile
 export function isVillageGround(map: MapTerrain, x: number, y: number) {
   if (!inBounds(map, x, y)) return false
   const tile = map.mapTiles?.[mapKey({ x, y })]
-  return tile ? tile.surface !== "water" && tile.elevation === 0 : isLand(x, y, map.width)
+  return tile ? tile.surface !== "water" && tile.elevation === 0 : isLand(x, y, map.width, map.height)
 }
 
 const validSurface = (value: unknown) =>

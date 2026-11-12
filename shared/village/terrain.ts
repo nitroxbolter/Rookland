@@ -3,13 +3,13 @@ import {
   calculateBlobBitmask,
   getBlobTileIndex,
 } from "../src/engine/autotiling/blobAutotiling"
-import { VILLAGE_SIZE } from "./config"
+import { VILLAGE_SIZE, VILLAGE_HEIGHT } from "./config"
 import { mapKey, mapTileAt } from "./map"
 import { floorPriority, MAP_SURFACES } from "./mapSurfaces"
 import type { VillageState } from "./types"
 
 export function createVillageTerrain(
-  map: Pick<VillageState, "width" | "height" | "mapTiles"> = { width: VILLAGE_SIZE, height: VILLAGE_SIZE },
+  map: Pick<VillageState, "width" | "height" | "mapTiles"> = { width: VILLAGE_SIZE, height: VILLAGE_HEIGHT },
   naturalPatches = true,
 ) {
   const tiles = new Map<string, GroundTile>()

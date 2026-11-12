@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { createVillage, executeVillage, updateVillage, migrateVillage } from "../dist/village.mjs"
+import { createVillage, executeVillage, updateVillage, migrateVillage, placementError } from "../dist/village.mjs"
 
 function setupIndustry() {
   const village = createVillage()
@@ -80,4 +80,66 @@ test("quartel treina soldado com roupa e arma, respeitando população", () => {
   executeVillage(village, { type: "equipSoldier", unitId: soldier.id })
   assert.equal(soldier.armored, true)
   assert.equal(village.crafts.armor, 0)
+})
+
+test("serralheria produz tábuas e palanques, acelera em três níveis e abastece construções", () => {
+  const village = setupIndustry()
+  village.buildings.push({ id: "sawmill", kind: "sawmill", x: 18, y: 4, width: 3, height: 3, level: 1, growth: 0 })
+  executeVillage(village, { type: "craftItem", buildingId: "sawmill", item: "planks", amount: 2 })
+  assert.equal(village.resources.wood, 384)
+  updateVillage(village, 48)
+  assert.equal(village.crafts.planks, 8)
+  executeVillage(village, { type: "craftItem", buildingId: "sawmill", item: "posts", amount: 2 })
+  updateVillage(village, 60)
+  assert.equal(village.crafts.posts, 6)
+  executeVillage(village, { type: "upgradeSawmill", buildingId: "sawmill" })
+  assert.equal(village.crafts.planks, 0)
+  assert.equal(village.crafts.posts, 2)
+  assert.throws(() => executeVillage(village, { type: "craftItem", buildingId: "sawmill", item: "planks" }), /melhorada/)
+  updateVillage(village, 180)
+  assert.equal(village.buildings.find((building) => building.id === "sawmill").level, 2)
+  executeVillage(village, { type: "craftItem", buildingId: "sawmill", item: "planks" })
+  assert.equal(village.buildings.find((building) => building.id === "sawmill").production.duration, 18)
+  updateVillage(village, 18)
+  village.crafts.planks = 16
+  village.crafts.posts = 8
+  executeVillage(village, { type: "upgradeSawmill", buildingId: "sawmill" })
+  updateVillage(village, 300)
+  assert.equal(village.buildings.find((building) => building.id === "sawmill").level, 3)
+  executeVillage(village, { type: "craftItem", buildingId: "sawmill", item: "posts" })
+  assert.equal(village.buildings.find((building) => building.id === "sawmill").production.duration, 17)
+  updateVillage(village, 17)
+  assert.throws(() => executeVillage(village, { type: "upgradeSawmill", buildingId: "sawmill" }), /máximo/)
+
+  const site = Array.from({ length: 80 * 80 }, (_, index) => ({ x: index % 80, y: Math.floor(index / 80) }))
+    .find(({ x, y }) => !placementError(village, "gate", x, y))
+  assert.ok(site)
+  const before = village.resources.wood
+  assert.throws(() => executeVillage(village, { type: "build", kind: "gate", ...site }), /tábuas ou palanques/)
+  assert.equal(village.resources.wood, before)
+  village.crafts.planks = 4
+  village.crafts.posts = 2
+  executeVillage(village, { type: "build", kind: "gate", ...site })
+  assert.equal(village.crafts.planks, 0)
+  assert.equal(village.crafts.posts, 0)
+})
+
+test("salvamentos anteriores recebem estoques vazios de tábuas e palanques", () => {
+  const oldSave = createVillage()
+  delete oldSave.crafts.planks
+  delete oldSave.crafts.posts
+  const restored = migrateVillage(oldSave)
+  assert.equal(restored.crafts.planks, 0)
+  assert.equal(restored.crafts.posts, 0)
+})
+
+test("serralheria pode ser construída na vila inicial", () => {
+  const village = createVillage()
+  const builder = village.units.find((unit) => unit.kind === "villager")
+  assert.equal(village.buildings.find((building) => building.kind === "townCenter").level, 1)
+  assert.equal(placementError(village, "sawmill", 30, 30), null)
+  executeVillage(village, { type: "build", kind: "sawmill", x: 30, y: 30, unitId: builder.id })
+  assert.equal(village.buildings.at(-1).kind, "sawmill")
+  assert.equal(village.resources.wood, 25)
+  assert.equal(village.resources.stone, 20)
 })

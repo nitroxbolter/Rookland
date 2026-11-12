@@ -99,7 +99,7 @@ O ciclo de coleta animal leva oito segundos de trabalho. Com aldeão responsáve
 | Arma ×1 | 20 ferro + 10 madeira + 5 ouro + 3 pregos | 60 s |
 | Armadura ×1 | 25 ferro + 8 ouro + 3 pregos + 2 tecidos | 75 s |
 
-O Centro Urbano troca lotes de 10: venda rende 1 moeda por comida, 2 por madeira, 3 por pedra e 5 por ferro; comprar custa o dobro. Produtos de oficinas e animais também podem ser vendidos. Ouro minerado permanece material, separado das moedas do tesouro, mas pode ser trocado no mercado em lotes de 10. A caravana compra até 1.000 moedas por ciclo financeiro de 30 minutos. Sementes e treinamento usam moedas. Pesquisa abre cestos/carrinho/carroça, arados, compostagem, adubação e irrigação, com três níveis cada.
+O Centro Urbano troca lotes de 10: a venda rende 1 ouro por comida, 2 por madeira, 3 por pedra e 5 por ferro; comprar custa o dobro. Produtos de oficinas e animais também podem ser vendidos. O mercado e as sementes usam diretamente o ouro minerado e guardado; o tesouro da cidade continua separado para impostos, festivais e treinamento. A caravana compra até 1.000 de ouro em mercadorias por ciclo financeiro de 30 minutos. Pesquisa abre cestos/carrinho/carroça, arados, compostagem, adubação e irrigação, com três níveis cada.
 
 ## Tesouro e sociedade
 

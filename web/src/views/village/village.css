@@ -202,6 +202,7 @@
 .structure-tower.structure-level-1 { background-image: url("/spritesheets/village/tower-level-1.png"); }
 .structure-tower.structure-level-2 { background-image: url("/spritesheets/village/tower-level-2.png"); }
 .structure-tower.structure-level-3 { background-image: url("/spritesheets/village/tower-level-3.png"); }
+.structure-tower.structure-level-4 { background-image: url("/spritesheets/village/tower-level-4.png"); }
 .creature-object { z-index: 1800; overflow: visible; width: 34px; height: 28px; transform: translate(-8px, -7px); }
 .creature-object.bear { width: 38px; height: 34px; transform: translate(-11px, -10px); }
 .village-shell .creature-object.is-targetable { cursor: crosshair; }
@@ -288,6 +289,38 @@
   width: 16px;
   height: 16px;
 }
+.enemy-unit .unit-shadow { background: #5a252b; }
+.enemy-camp,
+.enemy-outpost {
+  position: absolute;
+  width: 64px;
+  height: 64px;
+  pointer-events: none;
+}
+.enemy-camp img,
+.enemy-outpost img {
+  position: absolute;
+  width: 76px;
+  height: 69px;
+  left: -6px;
+  bottom: 0;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.enemy-camp span {
+  position: absolute;
+  left: 50%;
+  bottom: -13px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 1px 4px;
+  color: #ffe0dd;
+  background: #5d2929d9;
+  font-size: 8px;
+  border-radius: 3px;
+}
+.enemy-outpost { width: 48px; height: 48px; }
+.enemy-outpost img { width: 56px; height: 55px; left: -4px; }
 .node-art {
   position: absolute;
   display: block;
@@ -390,6 +423,10 @@
     left 0.18s linear,
     top 0.18s linear;
 }
+.enemy-unit {
+  transition: left 0.11s linear, top 0.11s linear;
+  will-change: left, top;
+}
 .military-sprite {
   width: 21px;
   height: 28px;
@@ -486,6 +523,33 @@
   font-size: 10px;
   text-shadow: 1px 1px #795638;
 }
+.carried-resource {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  bottom: 9px;
+  width: 16px;
+  height: 13px;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+.carried-resource svg { position: absolute; inset: 0; overflow: visible; }
+.carried-resource.is-moving { animation: carried-step 0.48s steps(1, end) infinite; }
+.carried-resource.facing-left { left: -2px; }
+.carried-resource.facing-right { left: 2px; }
+.carried-resource.facing-up { bottom: 13px; }
+.carried-hand {
+  position: absolute;
+  z-index: 1;
+  top: 6px;
+  width: 3px;
+  height: 4px;
+  background: #e1aa78;
+  border: 1px solid #69482e;
+}
+.carried-hand.left { left: 0; }
+.carried-hand.right { right: 0; }
+@keyframes carried-step { 50% { transform: translateY(-1px); } }
 .unit-warning {
   position: absolute;
   top: -17px;
@@ -511,6 +575,14 @@
     #805c40 5px 6px
   );
   box-shadow: 0 1px 0 #6c653d;
+}
+.farm-furrows.farm-level-2 {
+  border: 2px solid #895c30;
+  box-shadow: inset 0 0 0 1px #c69959, 0 1px 0 #594027;
+}
+.farm-furrows.farm-level-3 {
+  border: 2px solid #8b8d88;
+  box-shadow: inset 0 0 0 1px #c3c5ba, 0 1px 0 #555957;
 }
 .farm-crop {
   position: absolute;

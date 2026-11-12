@@ -159,10 +159,11 @@ na venda:
 | Pedra | 10 | 3 |
 | Ferro | 10 | 5 |
 
-O ouro minerado é um material de construção e fabricação. Vendas rendem moedas
-para o tesouro, separadas do ouro físico. Produtos de oficinas e animais também
-podem ser vendidos, e o ouro minerado pode ser trocado por moedas. A caravana
-compra até 1.000 moedas de mercadorias por ciclo financeiro de 30 minutos.
+O ouro minerado é também a moeda do mercado: compras e sementes gastam o ouro
+guardado, e vendas de recursos, produtos de oficinas e animais acrescentam ouro
+ao mesmo estoque. A caravana compra até 1.000 de ouro em mercadorias por ciclo
+financeiro de 30 minutos. O limite de armazenamento de ouro também vale para
+vendas.
 Se não houver estoque ou orçamento, a transação é recusada por inteiro.
 
 ## Centro da vila
@@ -222,10 +223,15 @@ fica centrada sobre a sombra da unidade.
 
 ## Alimentação
 
-Cada aldeão e o explorador consomem **1 comida a cada 10 minutos de jogo**.
-Cada soldado consome **5**, e cada animal vivo no curral consome **2** no mesmo
-intervalo. O centro urbano mostra a conta compacta e quanto falta para a
-próxima refeição. Novas unidades entram na próxima refeição da vila.
+Na política padrão, cada aldeão recebe **50 comidas por hora de jogo** e cada
+soldado ou arqueiro recebe **100 comidas por hora**. A ração é cobrada a cada
+minuto de jogo, em parcelas inteiras que somam exatamente esses valores ao fim
+de uma hora; a aba Economia permite ajustá-la. O soldo em ouro continua cobrado
+a cada 60 minutos de jogo. O
+explorador não entra nessa conta. Separadamente, cada animal vivo no curral
+consome **2 comidas a cada 10 minutos**, e cada casa pronta consome 10, 50 ou
+250 comidas nesse intervalo, conforme o nível. O centro urbano mostra a
+manutenção de casas e animais; a aba Economia mostra a ração horária das unidades.
 
 Se a comida não cobrir a refeição, o estoque para em zero e os aldeões ficam com
 **50% de velocidade de caminhada, coleta e contribuição ao crescimento**. Não
@@ -233,8 +239,9 @@ morrem nem perdem a tarefa. Uma próxima refeição paga integralmente restaura 
 eficiência. Isso permite recuperar a produção depois de uma falta de comida.
 
 Pausa interrompe produção e alimentação. As velocidades ×2, ×4 e ×10 aceleram
-ambas. Em ×10, uma refeição a cada 10 minutos de jogo ocorre a cada aproximadamente
-1 minuto real. O tempo para quando o backend está desligado.
+ambas. Em ×10, a manutenção de 10 minutos de jogo ocorre aproximadamente a cada
+minuto real, e a ração é cobrada aproximadamente a cada seis segundos reais. O
+tempo para quando o backend está desligado.
 
 ## Curral e produção em lotes
 
@@ -254,12 +261,21 @@ fim do seu próprio tempo. Desmobilizar devolve o trabalhador e guarda o kit.
 As fazendas pagam a semente quando são colocadas e continuam replantando após
 cada colheita, mesmo que o estoque de sementes chegue a zero.
 
-Em vilas novas, as árvores começam concentradas na floresta do oeste e em
-bosques menores. Pedra, ferro e ouro têm jazidas em regiões separadas. Cada
-jazida esgotada leva cinco minutos de jogo para recuperar sua carga na mesma
-posição. O terreno da jazida fica reservado enquanto ela se recupera.
+Em vilas novas, a ilha mede 80 × 160 terrenos e se estende bem mais ao sul.
+As árvores começam concentradas na floresta do oeste e em bosques menores;
+há novas árvores, pedras, ferro, ouro e arbustos no sul. Jazidas e arbustos
+esgotados recuperam sua carga na mesma posição após cinco minutos de jogo.
+O terreno desses recursos fica reservado durante a recuperação.
 Árvores derrubadas somem e podem ser repostas pelo plantio de mudas. Construir
 perto de um recurso não muda sua posição.
+
+No sul há um acampamento rival. Seus aldeões coletam e entregam recursos ao
+acampamento; a facção usa esse estoque para evoluir até o nível 3, erguer postos
+avançados e recrutar soldados e arqueiros. Os guardas permanecem na região e
+só revidam depois que uma unidade rival é atingida; soldados próximos ao alvo
+atacado também entram na defesa. Selecione uma unidade sua
+e clique em um rival para ordenar o ataque. Vilas antigas mantêm a posição da
+cidade ao receber a expansão e a facção rival.
 
 ## Recursos e controles
 

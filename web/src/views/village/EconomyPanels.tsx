@@ -64,6 +64,7 @@ import {
   UPKEEP_PER_ANIMAL,
   FINANCE_INTERVAL,
   PAYROLL_INTERVAL,
+  RATION_INTERVAL,
   TAX_RATES,
   PROVISION_LIMITS,
   DEFAULT_PROVISIONS,
@@ -73,7 +74,7 @@ import {
 import { sendCommand } from "@/services/gameClient"
 import { commerceGoals, ERA_NAMES, townLevel, unlockReason, villageEra } from "../../../../shared/village/progression"
 import { recruitmentCheck } from "../../../../shared/village/simulation"
-import { AtlasSprite, animalSprites } from "./sprites"
+import { AtlasSprite, animalSprites, townSprite } from "./sprites"
 import { BatchQuantity } from "./BatchQuantity"
 
 const afford = (s: VillageState, cost: Partial<Resources>) =>
@@ -86,6 +87,8 @@ const CRAFT_NAMES: Record<CraftItem, string> = {
   tools: "Ferramentas",
   weapons: "Armas",
   armor: "Armaduras",
+  planks: "Tábuas",
+  posts: "Palanques de madeira",
 }
 const CRAFT_ICONS: Record<CraftItem, typeof Hammer> = {
   nails: Hammer,
@@ -94,6 +97,8 @@ const CRAFT_ICONS: Record<CraftItem, typeof Hammer> = {
   tools: Scissors,
   weapons: Swords,
   armor: ShieldCheck,
+  planks: Warehouse,
+  posts: TreePine,
 }
 const RESOURCE_ICONS: Record<keyof Resources, typeof Hammer> = {
   wood: TreePine,
@@ -307,7 +312,7 @@ export function BarnManagement({
   )
   const barnNextLevel = barn.level + 1
   const barnUpgradeLocked = barnNextLevel >= 6 && townLevel(village) < barnNextLevel
-  const crafts = village.crafts ?? { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0 }
+  const crafts = village.crafts ?? { nails: 0, cloth: 0, clothing: 0, tools: 0, weapons: 0, armor: 0, planks: 0, posts: 0 }
   return (
     <div className="economy-panel">
       <div className="resource-storage-list">
@@ -450,7 +455,7 @@ export function TownCenterMenu({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="town-menu-heading">
-          <span className="town-center-art-preview"><AtlasSprite sprite={`town${Math.min(3, center?.level ?? 1)}` as "town1" | "town2" | "town3"} scale={0.15} /></span>
+          <span className="town-center-art-preview"><AtlasSprite sprite={townSprite(center?.level ?? 1)} scale={0.15} /></span>
           <div>
             <h1>Centro da vila</h1>
             <p><Flag size={13} aria-hidden="true" /> {ERA_NAMES[era]} · N{center?.level ?? 1}</p>
@@ -465,7 +470,7 @@ export function TownCenterMenu({
             <span title="População"><Users size={16} aria-hidden="true" /><strong>{village.units.length}/{populationCapacity(village)}</strong></span>
             <span title="Consumo de comida"><Wheat size={16} aria-hidden="true" />{upkeepCost(village)} / 10 min</span>
           </summary>
-          <p>Manutenção: animais {animals * UPKEEP_PER_ANIMAL} · casas {houseUpkeep}. Salários e rações das unidades são cobrados a cada hora na aba Economia. Próxima manutenção em {Math.ceil((UPKEEP_INTERVAL - village.economy.upkeepElapsed) / 60)} min.</p>
+          <p>Manutenção: animais {animals * UPKEEP_PER_ANIMAL} · casas {houseUpkeep}. Soldos são cobrados a cada hora e rações a cada minuto de jogo na aba Economia. Próxima manutenção em {Math.ceil((UPKEEP_INTERVAL - village.economy.upkeepElapsed) / 60)} min.</p>
         </details>
         <nav className="research-tabs" role="tablist" aria-label="Centro da vila">
           {TABS.filter((t) => !marketLocked || (t.id !== "market" && t.id !== "seeds")).map((t) => (
@@ -619,20 +624,20 @@ function SeedPanel({ village }: { village: VillageState }) {
           <h2>Sementes</h2>
           <p>Compre sementes para escolher o cultivo e replantar árvores.</p>
         </div>
-        <span><Coins size={18} /> {village.city?.treasury ?? 40} moedas</span>
+        <span><Coins size={18} /> {village.resources.gold} ouro</span>
       </div>
       <div className="seed-list">
         {seeds.map(({ id, name }) => {
           const cost = SEED_PRICES[id] * SEED_BUNDLE_SIZE
           return (
             <div key={id}>
-              <span><strong>{name}</strong><small>{village.seeds[id]} em estoque · {SEED_PRICES[id]} moedas cada</small></span>
+              <span><strong>{name}</strong><small>{village.seeds[id]} em estoque · {SEED_PRICES[id]} ouro cada</small></span>
               <button
                 className="primary-action"
-                disabled={(village.city?.treasury ?? 40) < cost}
+                disabled={village.resources.gold < cost}
                 onClick={() => { void sendCommand({ type: "buySeeds", seed: id, amount: SEED_BUNDLE_SIZE }) }}
               >
-                Comprar {SEED_BUNDLE_SIZE} · {cost} moedas
+                Comprar {SEED_BUNDLE_SIZE} · {cost} ouro
               </button>
             </div>
           )
@@ -659,9 +664,9 @@ function MarketPanel({ village }: { village: VillageState }) {
     setBusy(true)
     setMessage("")
     if (side === "sell" && await sendCommand({ type: "sellResource", resource, amount }))
-      setMessage(`Venda concluída: +${(amount / MARKET_RATES[resource].amount) * MARKET_RATES[resource].gold} moedas.`)
+      setMessage(`Venda concluída: +${(amount / MARKET_RATES[resource].amount) * MARKET_RATES[resource].gold} ouro.`)
     else if (side === "buy" && await sendCommand({ type: "buyResource", resource, amount }))
-      setMessage(`Compra concluída: ${amount} ${RESOURCE_NAMES[resource].toLowerCase()} por ${(amount / MARKET_BUY_RATES[resource].amount) * MARKET_BUY_RATES[resource].gold} moedas.`)
+      setMessage(`Compra concluída: ${amount} ${RESOURCE_NAMES[resource].toLowerCase()} por ${(amount / MARKET_BUY_RATES[resource].amount) * MARKET_BUY_RATES[resource].gold} ouro.`)
     setBusy(false)
   }
   return (
@@ -669,11 +674,11 @@ function MarketPanel({ village }: { village: VillageState }) {
       <div className="market-heading">
         <div>
           <h2>Mercado da vila</h2>
-          <p>Ouro minerado é material. Vendas rendem moedas para o tesouro.</p>
+          <p>Compras e vendas usam o mesmo ouro que os aldeões coletam.</p>
         </div>
         <span>
           <Coins size={20} />
-          {village.city?.treasury ?? 40} moedas
+          {village.resources.gold} ouro
         </span>
       </div>
       <div className="market-list">
@@ -684,9 +689,10 @@ function MarketPanel({ village }: { village: VillageState }) {
             const maxSell = Math.min(
               Math.floor(village.resources[resource] / rate.amount) * rate.amount,
               Math.floor(caravanRoom / rate.gold) * rate.amount,
+              Math.floor((capacity.gold - village.resources.gold) / rate.gold) * rate.amount,
             )
             const maxBuy = Math.min(
-              Math.floor((village.city?.treasury ?? 40) / buyRate.gold) * buyRate.amount,
+              Math.floor(village.resources.gold / buyRate.gold) * buyRate.amount,
               Math.floor((capacity[resource] - village.resources[resource]) / buyRate.amount) * buyRate.amount,
             )
             const maxAmount = Math.max(maxSell, maxBuy)
@@ -719,10 +725,10 @@ function MarketPanel({ village }: { village: VillageState }) {
                 </div>
                 <div className="market-trades">
                   <button className="market-buy" disabled={busy || amount === 0 || amount > maxBuy} onClick={() => void trade(resource, amount, "buy")}>
-                    Comprar · {buyGold} moedas
+                    Comprar · {buyGold} ouro
                   </button>
                   <button className="market-sell" disabled={busy || amount === 0 || amount > maxSell} onClick={() => void trade(resource, amount, "sell")}>
-                    Vender · +{sellGold} moedas
+                    Vender · +{sellGold} ouro
                   </button>
                 </div>
               </div>
@@ -730,28 +736,22 @@ function MarketPanel({ village }: { village: VillageState }) {
           },
         )}
       </div>
-      <p className="economy-caption">Caravana: {caravanRoom}/{MARKET_CYCLE_BUDGET} moedas disponíveis neste ciclo financeiro.</p>
+      <p className="economy-caption">Caravana: {caravanRoom}/{MARKET_CYCLE_BUDGET} ouro disponível neste ciclo financeiro.</p>
       <div className="city-market-products">
         {(Object.keys(MARKET_PRODUCT_RATES) as (keyof typeof MARKET_PRODUCT_RATES)[]).map((item) => {
           const quote = MARKET_PRODUCT_RATES[item]
           const stock = item in (village.crafts ?? {})
             ? village.crafts?.[item as keyof NonNullable<VillageState["crafts"]>] ?? 0
             : village.animalProducts?.[item as keyof NonNullable<VillageState["animalProducts"]>] ?? 0
-          const name = ({ nails: "Pregos", cloth: "Tecido", clothing: "Roupa", tools: "Ferramenta", weapons: "Arma", armor: "Armadura", milk: "Leite", wool: "Lã", eggs: "Ovos", feathers: "Penas" } as const)[item]
-          return <button key={item} type="button" disabled={busy || stock < quote.amount || caravanRoom < quote.coins}
+          const name = ({ planks: "Tábuas", posts: "Palanques de madeira", nails: "Pregos", cloth: "Tecido", clothing: "Roupa", tools: "Ferramenta", weapons: "Arma", armor: "Armadura", milk: "Leite", wool: "Lã", eggs: "Ovos", feathers: "Penas" } as const)[item]
+          return <button key={item} type="button" disabled={busy || stock < quote.amount || caravanRoom < quote.coins || village.resources.gold + quote.coins > capacity.gold}
             onClick={async () => {
               setBusy(true)
-              if (await sendCommand({ type: "sellProduct", item, amount: quote.amount })) setMessage(`Vendido: ${quote.amount} ${name.toLowerCase()} · +${quote.coins} moedas.`)
+              if (await sendCommand({ type: "sellProduct", item, amount: quote.amount })) setMessage(`Vendido: ${quote.amount} ${name.toLowerCase()} · +${quote.coins} ouro.`)
               setBusy(false)
-            }}>{name} {stock} · vender {quote.amount} por {quote.coins} moedas</button>
+            }}>{name} {stock} · vender {quote.amount} por {quote.coins} ouro</button>
         })}
       </div>
-      <button type="button" className="primary-action" disabled={busy || village.resources.gold < 10 || caravanRoom < 10}
-        onClick={async () => {
-          setBusy(true)
-          if (await sendCommand({ type: "mintGold", amount: 10 })) setMessage("10 ouros minerados trocados por 10 moedas.")
-          setBusy(false)
-        }}>Trocar 10 ouros minerados por 10 moedas</button>
       {message && (
         <p className="market-message" role="status">
           {message}
@@ -788,7 +788,7 @@ function EconomyManagementPanel({ village }: { village: VillageState }) {
   return <div className="economy-management-panel">
     <div className="economy-budget-head">
       <h2><Coins size={19} /> Orçamento por hora</h2>
-      <span><Clock3 size={15} /> {Math.ceil((PAYROLL_INTERVAL - city.payrollElapsed) / 60)} min</span>
+      <span><Clock3 size={15} /> Soldo em {Math.ceil((PAYROLL_INTERVAL - city.payrollElapsed) / 60)} min · ração em {Math.ceil((RATION_INTERVAL - city.rationElapsed) / 60)} min</span>
     </div>
     <div className="economy-budget-totals">
       <span><Users size={15} /> {cost.villagers} aldeões</span>
@@ -812,8 +812,8 @@ function EconomyManagementPanel({ village }: { village: VillageState }) {
       <span>Soldado <b>{soldierDamage(village, "soldier")}</b>{changed && <small> → {nextDamage.soldier} após pagamento</small>}</span>
       <span>Arqueiro <b>{soldierDamage(village, "archer")}</b>{changed && <small> → {nextDamage.archer} após pagamento</small>}</span>
     </div>
-    <p className="economy-caption">O novo orçamento entra em vigor no próximo pagamento. Se faltar ouro ou comida, as unidades recebem uma parte proporcional e o dano cai.</p>
-    <p className="economy-caption">Última hora: <Coins size={13} /> {city.lastPayroll.goldPaid}/{city.lastPayroll.goldDue} ouro · <Wheat size={13} /> {city.lastPayroll.foodServed}/{city.lastPayroll.foodDue} comida.</p>
+    <p className="economy-caption">A nova ração entra em vigor no próximo minuto; o soldo, na próxima hora. Se faltar ouro ou comida, as unidades recebem uma parte proporcional e o dano cai.</p>
+    <p className="economy-caption">Últimas cobranças: <Coins size={13} /> {city.lastPayroll.goldPaid}/{city.lastPayroll.goldDue} ouro na hora · <Wheat size={13} /> {city.lastPayroll.foodServed}/{city.lastPayroll.foodDue} comida no minuto.</p>
   </div>
 }
 

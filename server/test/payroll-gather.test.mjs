@@ -42,38 +42,58 @@ test("carga e tempo de extração variam por recurso", () => {
   assert.deepEqual(worker.gathering, { resource: "gold", amount: 1 })
 })
 
-test("salários e rações cobram ouro e comida a cada hora e afetam dano", () => {
+test("ração é cobrada por minuto, soma 50/100 por hora e soldo continua horário", () => {
   const village = createVillage()
   village.creatureSpawnAt = 100_000
+  assert.equal(village.city.provisions.villagerFood, 50)
+  assert.equal(village.city.provisions.soldierFood, 100)
   const soldier = { ...structuredClone(village.units[1]), id: "test-soldier", kind: "soldier", job: { kind: "idle" }, health: 110, maxHealth: 110 }
   village.units.push(soldier)
   village.resources.gold = 40
-  village.resources.food = 120
+  village.resources.food = 500
+  village.city.rationElapsed = 59.8
+  updateVillage(village, 0.2)
+  assert.equal(village.resources.food, 497)
+  assert.equal(village.resources.gold, 40)
+  assert.equal(village.city.lastPayroll.foodDue, 3)
+  for (let minute = 1; minute < 60; minute++) updateVillage(village, 60)
+  assert.equal(village.resources.food, 350)
+  assert.equal(village.city.rationRemainder, 59)
+  assert.equal(village.resources.gold, 40)
+  assert.equal(soldierDamage(village, "soldier"), 14)
+
+  village.resources.gold = 40
   village.city.payrollElapsed = 3599.8
   updateVillage(village, 0.2)
   assert.equal(village.resources.gold, 0)
-  assert.equal(village.resources.food, 0)
-  assert.deepEqual(village.city.lastPayroll, { goldDue: 40, goldPaid: 40, foodDue: 120, foodServed: 120 })
-  assert.equal(soldierDamage(village, "soldier"), 14)
+  assert.equal(village.resources.food, 350)
+  assert.equal(village.city.lastPayroll.goldDue, 40)
+  assert.equal(village.city.lastPayroll.goldPaid, 40)
 
   executeVillage(village, { type: "setProvisions", provisions: {
-    villagerGold: 20, villagerFood: 40, soldierGold: 40, soldierFood: 120,
+    villagerGold: 20, villagerFood: 50, soldierGold: 40, soldierFood: 120,
   } })
   village.resources.gold = 60
   village.resources.food = 160
+  village.city.rationElapsed = 59.8
+  updateVillage(village, 0.2)
+  assert.equal(village.city.lastPayroll.foodDue, 3)
   village.city.payrollElapsed = 3599.8
   updateVillage(village, 0.2)
-  assert.equal(soldierDamage(village, "soldier"), 19)
+  assert.equal(soldierDamage(village, "soldier"), 18)
   assert.equal(village.city.unpaidCycles, 0)
 
+  village.resources.food = 0
+  village.city.rationElapsed = 59.8
+  updateVillage(village, 0.2)
+  assert.equal(village.city.lastPayroll.foodServed, 0)
   village.city.payrollElapsed = 3599.8
   updateVillage(village, 0.2)
   assert.equal(village.city.lastPayroll.goldPaid, 0)
-  assert.equal(village.city.lastPayroll.foodServed, 0)
   assert.equal(soldierDamage(village, "soldier"), 8)
   assert.equal(village.city.unpaidCycles, 1)
   assert.throws(() => executeVillage(village, { type: "setProvisions", provisions: {
-    villagerGold: 20, villagerFood: 40, soldierGold: 41, soldierFood: 120,
+    villagerGold: 20, villagerFood: 50, soldierGold: 41, soldierFood: 120,
   } }), /inválidos/)
 })
 
@@ -88,6 +108,27 @@ test("celeiro N8 atinge os novos limites e o save antigo recebe política padrã
   delete oldSave.city.activeSoldierProvision
   delete oldSave.city.lastPayroll
   const restored = migrateVillage(oldSave)
-  assert.equal(restored.city.provisions.soldierFood, 80)
+  assert.equal(restored.city.provisions.soldierFood, 100)
   assert.equal(restored.city.payrollElapsed, 0)
+  assert.equal(restored.city.rationElapsed, 0)
+  assert.equal(restored.city.rationRemainder, 59)
+})
+
+test("migração atualiza a ração antiga sem substituir escolha feita na nova versão", () => {
+  const legacy = createVillage()
+  legacy.city.provisions.villagerFood = 40
+  legacy.city.provisions.soldierFood = 80
+  legacy.city.activeSoldierProvision.food = 80
+  delete legacy.city.rationElapsed
+  delete legacy.city.rationRemainder
+  const upgraded = migrateVillage(legacy)
+  assert.equal(upgraded.city.provisions.villagerFood, 50)
+  assert.equal(upgraded.city.provisions.soldierFood, 100)
+  assert.equal(upgraded.city.activeSoldierProvision.food, 100)
+  const custom = createVillage()
+  custom.city.provisions.villagerFood = 40
+  custom.city.provisions.soldierFood = 80
+  const preserved = migrateVillage(custom)
+  assert.equal(preserved.city.provisions.villagerFood, 40)
+  assert.equal(preserved.city.provisions.soldierFood, 80)
 })

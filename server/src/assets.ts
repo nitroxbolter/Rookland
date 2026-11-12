@@ -14,9 +14,15 @@ const activities = [
 ] as const
 
 export const assets: Asset[] = [
-  ...([['town-center-level-1','Centro urbano · nível 1','4×4',325,305,0.2],['town-center-level-2','Centro urbano · nível 2','4×4',325,310,0.2],['town-center-level-3','Centro urbano · nível 3','4×4',357,312,0.2],['barn-level-1','Celeiro · nível 1','3×3',328,255,0.17],['barn-level-2','Celeiro · nível 2','3×3',337,260,0.17],['barn-level-3','Celeiro · nível 3','3×3',360,260,0.17],['well','Poço','2×2',155,170,0.19]] as const).map(([id,label,footprint,w,h,gameScale]) => ({
+  ...([['town-center-level-1','Centro urbano · nível 1','4×4',325,305,0.2],['town-center-level-2','Centro urbano · nível 2','4×4',325,310,0.2],['town-center-level-3','Centro urbano · nível 3','4×4',325,310,0.2],['barn-level-1','Celeiro · nível 1','3×3',328,255,0.17],['barn-level-2','Celeiro · nível 2','3×3',337,260,0.17],['barn-level-3','Celeiro · nível 3','3×3',337,260,0.17],['well','Poço','2×2',155,170,0.19]] as const).map(([id,label,footprint,w,h,gameScale]) => ({
     id, label, category: "Estruturas" as const, path: `${village}/${id}.png`, footprint, spriteSize: `${w}×${h}`, gameScale,
   })),
+  ...([['town-center', 'Centro urbano', '4×4', 357, 312, 0.2], ['barn', 'Celeiro', '3×3', 360, 260, 0.17]] as const).flatMap(([kind, label, footprint, w, h, gameScale]) =>
+    Array.from({ length: 5 }, (_, index) => ({
+      id: `${kind}-level-${index + 4}`, label: `${label} · nível ${index + 4}`,
+      category: "Estruturas" as const, path: `${village}/${kind}-level-${index + 4}.png`,
+      footprint, spriteSize: `${w}×${h}`, gameScale,
+    }))),
   ...(["house", "ranch"] as const).flatMap((kind) => Array.from({ length: kind === "house" ? 3 : 5 }, (_, index) => ({
     id: `${kind}-level-${index + 1}`, label: `${kind === "house" ? "Casa" : "Curral"} · nível ${index + 1}`,
     category: "Estruturas" as const, path: `${village}/${kind}-level-${index + 1}.png`, footprint: "2×2", spriteSize: "724×724",
@@ -25,15 +31,25 @@ export const assets: Asset[] = [
     id: `wall-${direction}-level-${index + 1}`, label: `Muro ${direction === "horizontal" ? "horizontal" : "vertical"} · nível ${index + 1}`,
     category: "Estruturas" as const, path: `${village}/wall-${direction}-level-${index + 1}.png`, footprint: "1×1", spriteSize: "724×724",
   }))),
-  ...(["gate", "tower"] as const).flatMap((kind) => Array.from({ length: 3 }, (_, index) => ({
+  ...(["gate", "tower"] as const).flatMap((kind) => Array.from({ length: kind === "tower" ? 4 : 3 }, (_, index) => ({
     id: `${kind}-level-${index + 1}`, label: `${kind === "gate" ? "Portão" : "Torre"} · nível ${index + 1}`,
     category: "Estruturas" as const, path: `${village}/${kind}-level-${index + 1}.png`,
     footprint: kind === "gate" ? "2×1" : "2×2", spriteSize: "724×724",
   }))),
-  ...["blacksmith", "weaving", "barracks"].map((name) => ({
-    id: name, label: ({ blacksmith: "Ferraria", weaving: "Tecelagem", barracks: "Quartel" } as Record<string, string>)[name],
+  ...["blacksmith", "barracks"].map((name) => ({
+    id: name, label: ({ blacksmith: "Ferraria", barracks: "Quartel" } as Record<string, string>)[name],
     category: "Estruturas" as const, path: `${village}/${name}.png`,
     footprint: "3×3", spriteSize: name === "barracks" ? "1536×1024" : "1312×1199",
+  })),
+  ...Array.from({ length: 5 }, (_, index) => ({
+    id: `weaving-level-${index + 1}`, label: `Tecelagem · nível ${index + 1}`,
+    category: "Estruturas" as const, path: `${village}/weaving-level-${index + 1}.png`,
+    footprint: "3×3", spriteSize: "1312×1199",
+  })),
+  ...Array.from({ length: 3 }, (_, index) => ({
+    id: `sawmill-level-${index + 1}`, label: `Serralheria · nível ${index + 1}`,
+    category: "Estruturas" as const, path: `${village}/sawmill-level-${index + 1}.png`,
+    footprint: "3×3", spriteSize: "1312×1199",
   })),
   { id: "soldier-directions", label: "Soldado · 4 direções", category: "Personagens", path: `${village}/soldier-directions.png`, footprint: "1×1", spriteSize: "por direção na folha" },
   { id: "explorer", label: "Explorador", category: "Personagens", path: `${village}/village-atlas.png`, footprint: "1×1", spriteSize: "84×151", region: [414, 758, 84, 151] },

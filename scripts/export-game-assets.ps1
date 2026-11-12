@@ -91,33 +91,31 @@ foreach ($name in @('blacksmith', 'weaving', 'barracks')) {
   Copy-Png (Join-Path $sprites "village/$name.png") "estruturas/$name.png"
 }
 foreach ($entry in @(
-  @('house-levels', 'casa', 3),
-  @('ranch-levels', 'curral', 5),
-  @('wall-levels', 'muro-horizontal', 3),
-  @('wall-levels-vertical', 'muro-vertical', 3),
-  @('gate-levels', 'portao', 3),
-  @('tower-levels', 'torre', 3),
-  @('soldier-directions', 'soldado', 4)
+  @('house', 'casa', 3),
+  @('ranch', 'curral', 5),
+  @('wall-horizontal', 'muro-horizontal', 3),
+  @('wall-vertical', 'muro-vertical', 3),
+  @('gate', 'portao', 3),
+  @('tower', 'torre', 4),
+  @('town-center', 'centro-urbano', 8),
+  @('barn', 'celeiro', 8),
+  @('weaving', 'tecelagem', 5),
+  @('sawmill', 'serralheria', 3)
 )) {
-  $sheet = [System.Drawing.Bitmap]::new((Join-Path $sprites "village/$($entry[0]).png"))
-  try { $sheetWidth = $sheet.Width; $sheetHeight = $sheet.Height } finally { $sheet.Dispose() }
-  $count = [int]$entry[2]
-  for ($index = 0; $index -lt $count; $index++) {
-    $left = [int][math]::Round($index * $sheetWidth / $count)
-    $right = [int][math]::Round(($index + 1) * $sheetWidth / $count)
-    $label = if ($entry[0] -eq 'soldier-directions') { @('frente', 'esquerda', 'costas', 'direita')[$index] } else { "nivel-$($index + 1)" }
-    $category = if ($entry[0] -eq 'soldier-directions') { 'personagens' } else { 'estruturas' }
-    Save-Crop "village/$($entry[0]).png" "$category/$($entry[1])-$label.png" $left 0 ($right - $left) $sheetHeight
+  for ($level = 1; $level -le [int]$entry[2]; $level++) {
+    Copy-Png (Join-Path $sprites "village/$($entry[0])-level-$level.png") "estruturas/$($entry[1])-nivel-$level.png"
   }
+}
+$soldierSheet = [System.Drawing.Bitmap]::new((Join-Path $sprites 'village/soldier-directions.png'))
+try { $soldierSheetWidth = $soldierSheet.Width; $soldierSheetHeight = $soldierSheet.Height } finally { $soldierSheet.Dispose() }
+for ($index = 0; $index -lt 4; $index++) {
+  $left = [int][math]::Round($index * $soldierSheetWidth / 4)
+  $right = [int][math]::Round(($index + 1) * $soldierSheetWidth / 4)
+  $label = @('frente', 'esquerda', 'costas', 'direita')[$index]
+  Save-Crop 'village/soldier-directions.png' "personagens/soldado-$label.png" $left 0 ($right - $left) $soldierSheetHeight
 }
 
 $villageAtlas = @{
-  'centro-urbano-nivel-1' = @(20, 15, 325, 305)
-  'centro-urbano-nivel-2' = @(370, 10, 325, 310)
-  'centro-urbano-nivel-3' = @(713, 10, 357, 312)
-  'celeiro-nivel-1' = @(20, 390, 328, 255)
-  'celeiro-nivel-2' = @(355, 385, 337, 260)
-  'celeiro-nivel-3' = @(710, 385, 360, 260)
   'poco' = @(1213, 187, 155, 170)
   'aldeao-frente' = @(28, 758, 78, 151)
   'aldeao-esquerda' = @(108, 758, 82, 151)
@@ -192,7 +190,8 @@ if ([System.IO.Path]::GetFullPath($temporary).StartsWith($output + [System.IO.Pa
 $readme = @'
 Assets PNG exportados do RookLand
 
-estruturas/    Construções isoladas e cada nível de casa, curral, muro, portão e torre.
+estruturas/    Construções isoladas e cada nível de casa, curral, muro, portão,
+               torre, centro urbano, celeiro e tecelagem.
 recursos/      Árvores, depósitos, arbustos, galhos e estágios das culturas usadas na vila.
 personagens/   Aldeão, explorador, soldado e animais, separados por direção.
 folhas-originais/  Cópias PNG das folhas completas, sem alterar os arquivos do jogo.

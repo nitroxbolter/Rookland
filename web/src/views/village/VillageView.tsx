@@ -48,6 +48,7 @@ import {
   gatherCarryCapacity,
   soldierDamage,
   BUILDINGS,
+  BUILD_CRAFT_COSTS,
   CROPS,
   NODE_RESOURCE,
   RESOURCE_NODE_AMOUNTS,
@@ -57,6 +58,7 @@ import {
   WELL_RADIUS_TILES,
   UPGRADE_COSTS,
   VILLAGE_SIZE,
+  VILLAGE_HEIGHT,
 } from "../../../../shared/village/config"
 import { unlockReason } from "../../../../shared/village/progression"
 import { placementError, treePlacementError, walkable, wallLineCells } from "../../../../shared/village/simulation"
@@ -64,19 +66,21 @@ import { createVillageTerrain } from "../../../../shared/village/terrain"
 import type {
   Building,
   BuildingKind,
+  CraftItem,
   Crop,
   Resource,
   Resources,
   ResourceNode,
   Unit,
   WildCreature,
+  EnemyUnit,
   VillageState,
 } from "../../../../shared/village/types"
 import { FarmManagement, BarnManagement, HouseManagement, WellManagement, TownCenterMenu } from "./EconomyPanels"
 import { IndustryPanel } from "./IndustryPanel"
 import { RanchPanel } from "./RanchPanel"
 import { buildingVisualTransform } from "./buildingVisualScale"
-import { AtlasSprite } from "./sprites"
+import { AtlasSprite, barnSprite, townSprite } from "./sprites"
 import { NodeArt } from "./NodeArt"
 import "./village.css"
 
@@ -87,6 +91,7 @@ const NEW_BUILDINGS = [
   { kind: "gate", hint: "Passagem · 2 × 1", Icon: Home },
   { kind: "tower", hint: "Defesa · 2 × 2", Icon: Warehouse },
   { kind: "blacksmith", hint: "Ferramentas e armas · 3 × 3", Icon: Hammer },
+  { kind: "sawmill", hint: "Tábuas e palanques · 3 × 3", Icon: TreePine },
   { kind: "weaving", hint: "Panos e roupas · 3 × 3", Icon: Package },
   { kind: "barracks", hint: "Soldados · 3 × 3", Icon: Users },
   { kind: "ranch", hint: "Animais · 2 × 2", Icon: PawPrint },
@@ -149,7 +154,7 @@ function ResourceAmount({
   )
 }
 
-function BuildCostSummary({ village, cost }: { village: VillageState; cost: Partial<Resources> }) {
+function BuildCostSummary({ village, cost, crafts = {} }: { village: VillageState; cost: Partial<Resources>; crafts?: Partial<Record<CraftItem, number>> }) {
   let trips = 0
   const missing = Object.entries(cost).flatMap(([key, total]) => {
     const resource = key as Resource
@@ -159,8 +164,12 @@ function BuildCostSummary({ village, cost }: { village: VillageState; cost: Part
     trips += Math.ceil(amount / perTrip)
     return [`${amount} ${RESOURCE_NAMES[resource].toLowerCase()}`]
   })
-  if (!Object.keys(cost).length) return null
-  return <small className="build-cost-summary">{missing.length ? `Faltam ${missing.join(", ")} · ~${trips} viagens` : "Materiais disponíveis"}</small>
+  for (const [item, total] of Object.entries(crafts)) {
+    const amount = Math.max(0, total - (village.crafts?.[item as CraftItem] ?? 0))
+    if (amount) missing.push(`${amount} ${item === "planks" ? "tábuas" : "palanques"}`)
+  }
+  if (!Object.keys(cost).length && !Object.keys(crafts).length) return null
+  return <small className="build-cost-summary">{missing.length ? `Faltam ${missing.join(", ")}${trips ? ` · ~${trips} viagens` : ""}` : "Materiais disponíveis"}</small>
 }
 
 export function wallUsesVerticalSprite(wall: Building, buildings: Building[]) {
@@ -189,7 +198,7 @@ export function BuildingArt({ building, verticalWall = false }: { building: Buil
     )
     return (
       <>
-        <div className="farm-furrows" />
+        <div className={`farm-furrows farm-level-${Math.min(3, building.level)}`} />
         {Array.from(
           {
             length:
@@ -220,10 +229,10 @@ export function BuildingArt({ building, verticalWall = false }: { building: Buil
       </>
     )
   }
-  if (building.kind === "blacksmith" || building.kind === "weaving" || building.kind === "barracks")
-    return <img className={`building-art workshop ${building.kind}`} src={`/spritesheets/village/${building.kind}.png`} alt="" draggable={false} />
+  if (building.kind === "blacksmith" || building.kind === "weaving" || building.kind === "sawmill" || building.kind === "barracks")
+    return <img className={`building-art workshop ${building.kind}`} src={`/spritesheets/village/${building.kind}${building.kind === "weaving" || building.kind === "sawmill" ? `-level-${Math.max(1, Math.min(building.kind === "sawmill" ? 3 : 5, building.level))}` : ""}.png`} alt="" draggable={false} />
   if (["wall", "gate", "tower"].includes(building.kind))
-    return <span className={`building-art structure-sprite structure-${building.kind} structure-level-${Math.min(3, building.level)} ${verticalWall ? "wall-vertical" : ""}`} />
+    return <span className={`building-art structure-sprite structure-${building.kind} structure-level-${Math.min(building.kind === "tower" ? 4 : 3, building.level)} ${verticalWall ? "wall-vertical" : ""}`} />
   return (
     <>
       {building.kind === "house" ? (
@@ -231,9 +240,9 @@ export function BuildingArt({ building, verticalWall = false }: { building: Buil
       ) : (
         <AtlasSprite
           sprite={building.kind === "townCenter"
-            ? `town${Math.min(3, building.level)}` as "town1" | "town2" | "town3"
+            ? townSprite(building.level)
             : building.kind === "barn"
-              ? `barn${Math.min(3, building.level)}` as "barn1" | "barn2" | "barn3"
+              ? barnSprite(building.level)
               : "well"}
           scale={building.kind === "townCenter" ? 0.2 : building.kind === "barn" ? 0.17 : 0.19}
           className={`building-art ${building.kind}`}
@@ -309,7 +318,7 @@ function UnitArt({
       <span className={`unit-shadow ${selected ? "selected" : ""}`} />
       <span className={`unit-art farmer-sprite ${animated ? "is-animated" : ""}`}
         style={{ backgroundImage: `url(/spritesheets/village/farmer/${activity}-${unit.facing}.png)` }} />
-      {unit.carrying && <span className="unit-bundle" title={`${unit.carrying.amount} ${RESOURCE_NAMES[unit.carrying.resource]}`}>▣</span>}
+      {unit.carrying && <CarriedResource resource={unit.carrying.resource} amount={unit.carrying.amount} moving={moving} facing={unit.facing} />}
       {selected && <span className="unit-marker">▾</span>}
       {(unit.status === "storageFull" || unit.status === "blocked") && <span className="unit-warning">!</span>}
     </>
@@ -341,6 +350,39 @@ function UnitArt({
   )
 }
 
+function EnemyArt({ unit }: { unit: EnemyUnit }) {
+  const moving = unit.path.length > 0
+  if (unit.kind === "villager") return <>
+    <span className="unit-shadow" />
+    <span className={`unit-art farmer-sprite ${moving ? "is-animated" : ""}`}
+      style={{ backgroundImage: `url(/spritesheets/village/enemy/farmer/walk-${unit.facing}.png)` }} />
+    {unit.carrying && <CarriedResource resource={unit.carrying.resource} amount={unit.carrying.amount} moving={moving} facing={unit.facing} />}
+  </>
+  const direction = unit.facing === "up" ? "back" : unit.facing === "down" ? "front" : unit.facing
+  return <>
+    <span className="unit-shadow" />
+    <span className={`unit-art military-sprite ${moving ? "walking" : ""}`}
+      style={{ backgroundImage: `url(/spritesheets/village/enemy/${unit.kind}/walk-${direction}.png)` }} />
+  </>
+}
+
+function CarriedResource({ resource, amount, moving, facing }: { resource: Resource; amount: number; moving: boolean; facing: Unit["facing"] }) {
+  return <span className={`carried-resource facing-${facing}${moving ? " is-moving" : ""}`}
+    title={`${amount} ${RESOURCE_NAMES[resource]}`} aria-label={`Carregando ${amount} ${RESOURCE_NAMES[resource]}`}>
+    <span className="carried-hand left" /><span className="carried-hand right" />
+    <svg viewBox="0 0 16 13" width="16" height="13" shapeRendering="crispEdges" aria-hidden="true">
+      <path d="M1 5h14v7H1z" fill="#6d4229" stroke="#332a26" />
+      <path d="M2 6h12v5H2z" fill="#a16a38" />
+      <path d="M4 6v5m8-5v5" stroke="#603e27" />
+      {resource === "wood" && <><path d="M3 4h10v3H3z" fill="#764729" stroke="#332a26" /><path d="M4 4h2v3H4zm5 0h2v3H9z" fill="#c18a4b" /></>}
+      {resource === "stone" && <><path d="m3 6 1-4 4-1 2 3 3 1v2H3z" fill="#8e9695" stroke="#414c4b" /><path d="m4 3 4-1 1 2H5z" fill="#c3cac4" /></>}
+      {resource === "iron" && <><path d="M3 4h10l-2 3H5z" fill="#a5b8bd" stroke="#46545d" /><path d="M5 4h6l-1 1H6z" fill="#e2e9e5" /></>}
+      {resource === "gold" && <><path d="m3 5 2-3h5l3 3-2 2H5z" fill="#ddb33e" stroke="#70522b" /><path d="m5 3 2-1h3l1 2H5z" fill="#fff0a1" /></>}
+      {resource === "food" && <><path d="M5 7V2m3 5V1m3 6V2" stroke="#c39237" /><path d="M3 4h3V2H4zm4-2h3V0H8zm3 3h3V3h-2z" fill="#e4be58" stroke="#84612d" /></>}
+    </svg>
+  </span>
+}
+
 export function VillageView() {
   const village = useStore(villageStore, (s) => s.state)
   if (!village)
@@ -356,7 +398,7 @@ export function VillageView() {
 
 function VillageScene({ village }: { village: VillageState }) {
   const connected = useStore(connectionStore, (s) => s.connected)
-  const viewport = useViewport(VILLAGE_SIZE, VILLAGE_SIZE)
+  const viewport = useViewport(VILLAGE_SIZE, VILLAGE_HEIGHT)
   const terrainSignature = JSON.stringify(village.mapTiles ?? {})
   const groundTiles = useMemo(() => createVillageTerrain({
     width: village.width, height: village.height, mapTiles: JSON.parse(terrainSignature),
@@ -434,7 +476,7 @@ function VillageScene({ village }: { village: VillageState }) {
   const selectedCreature = selection?.kind === "creature"
     ? village.creatures?.find((creature) => creature.id === selection.id)
     : undefined
-  const selectedWorkshop = selectedBuilding?.kind === "blacksmith" || selectedBuilding?.kind === "weaving"
+  const selectedWorkshop = selectedBuilding?.kind === "blacksmith" || selectedBuilding?.kind === "weaving" || selectedBuilding?.kind === "sawmill"
   const SelectedBuildingIcon = NEW_BUILDINGS.find(({ kind }) => kind === selectedBuilding?.kind)?.Icon
   const assignedBuilders = selectedBuilding
     ? village.units.filter(
@@ -737,7 +779,7 @@ function VillageScene({ village }: { village: VillageState }) {
     <main className={`village-shell ${build ? "is-building" : ""}`}>
       <Viewport
         viewport={viewport}
-        farmHeight={VILLAGE_SIZE}
+        farmHeight={VILLAGE_HEIGHT}
         farmWidth={VILLAGE_SIZE}
         cursor={viewport.isDragging ? "grabbing" : build || selectedUnit?.kind === "soldier" || selectedUnit?.kind === "archer" ? "crosshair" : "grab"}
         onClick={groundClick}
@@ -755,10 +797,10 @@ function VillageScene({ village }: { village: VillageState }) {
         touchNavigation
         onMapPointerDown={(event) => { touchPointer.current = event.pointerType === "touch" }}
       >
-        <WaterBackground width={VILLAGE_SIZE} height={VILLAGE_SIZE} />
+        <WaterBackground width={VILLAGE_SIZE} height={VILLAGE_HEIGHT} />
         <Grid
           width={VILLAGE_SIZE}
-          height={VILLAGE_SIZE}
+          height={VILLAGE_HEIGHT}
           groundTiles={groundTiles}
           mode="idle"
           mouseTile={null}
@@ -807,6 +849,13 @@ function VillageScene({ village }: { village: VillageState }) {
             </span>
           </button>
         ))}
+        {village.enemy && <div className="enemy-camp" style={{ left: (village.enemy.base.x - 2) * 16, top: (village.enemy.base.y - 2) * 16, zIndex: (village.enemy.base.y + 2) * 16 }}
+          title={`Acampamento rival · nível ${village.enemy.level} · ${village.enemy.units.filter((unit) => unit.kind !== "villager").length} guardas`}>
+          <img src={`/spritesheets/village/barn-level-${village.enemy.level}.png`} alt="" draggable={false} />
+          <span>Acampamento rival · N{village.enemy.level}</span>
+        </div>}
+        {village.enemy?.level && village.enemy.level >= 2 && <div className="enemy-outpost" style={{ left: 52 * 16, top: 132 * 16, zIndex: 136 * 16 }} title="Posto avançado rival"><img src="/spritesheets/village/house-level-1.png" alt="" draggable={false} /></div>}
+        {village.enemy?.level === 3 && <div className="enemy-outpost" style={{ left: 24 * 16, top: 132 * 16, zIndex: 136 * 16 }} title="Posto avançado rival"><img src="/spritesheets/village/house-level-2.png" alt="" draggable={false} /></div>}
         {village.nodes.map((n) => {
           const regenerating = n.regeneratesAt !== undefined
           const remaining = Math.max(0, Math.ceil((n.regeneratesAt ?? 0) - village.economy.elapsed))
@@ -867,6 +916,24 @@ function VillageScene({ village }: { village: VillageState }) {
             <span className={`creature-sprite ${creature.kind} ${creature.hostileTo ? "is-animated" : ""}`}
               style={{ backgroundImage: `url(/spritesheets/village/${creature.kind}-walk.png)` }} />
             {(creature.hostileTo || village.units.some((unit) => unit.job.kind === "attackCreature" && unit.job.targetId === creature.id) || creature.health < creature.maxHealth) && <span className={`health-bar ${(creature.health / creature.maxHealth) < 0.3 ? "is-low" : ""}`}><i style={{ width: `${Math.max(0, creature.health / creature.maxHealth * 100)}%` }} /></span>}
+          </button>
+        ))}
+        {village.enemy?.units.map((enemyUnit) => (
+          <button key={enemyUnit.id} type="button" className={`world-object unit-object enemy-unit ${enemyUnit.kind}`}
+            style={{ ...pointStyle(enemyUnit), zIndex: Math.floor((enemyUnit.y + 1) * 16) + 1 }}
+            aria-label={`Inimigo ${enemyUnit.kind === "villager" ? "aldeão" : enemyUnit.kind === "archer" ? "arqueiro" : "soldado"} · vida ${enemyUnit.health}/${enemyUnit.maxHealth}`}
+            title={`${enemyUnit.kind === "villager" ? "Aldeão rival" : enemyUnit.kind === "archer" ? "Arqueiro rival" : "Soldado rival"} · ${enemyUnit.health}/${enemyUnit.maxHealth} vida · revida apenas se atacado`}
+            onClick={async (event) => {
+              event.stopPropagation()
+              if (!selectedUnit) { setNotice("Selecione uma unidade para atacar. Os rivais são pacíficos até serem atacados."); return }
+              const attackers = selectedMilitary.length > 1 ? selectedMilitary : [selectedUnit]
+              let ordered = 0
+              for (const unit of attackers)
+                if (await sendCommand({ type: "attackEnemy", unitId: unit.id, enemyId: enemyUnit.id })) ordered++
+              if (ordered) setNotice(`${ordered} unidade${ordered > 1 ? "s" : ""} a caminho do inimigo.`)
+            }}>
+            <EnemyArt unit={enemyUnit} />
+            {enemyUnit.health < enemyUnit.maxHealth && <span className="health-bar"><i style={{ width: `${enemyUnit.health / enemyUnit.maxHealth * 100}%` }} /></span>}
           </button>
         ))}
         {village.units.filter((unit) => unit.job.kind !== "garrison").map((u) => (
@@ -1157,12 +1224,12 @@ function VillageScene({ village }: { village: VillageState }) {
               const spec = BUILDINGS[kind]
               if (unlockReason(village, { kind: "building", value: kind })) return null
               return <button key={kind} className={`build-card ${build === kind ? "active" : ""}`}
-                disabled={!connected || selectedUnit?.kind !== "villager" || !canAfford(spec.cost)}
+                disabled={!connected || selectedUnit?.kind !== "villager" || !canAfford(spec.cost) || Object.entries(BUILD_CRAFT_COSTS[kind] ?? {}).some(([item, amount]) => (village.crafts?.[item as CraftItem] ?? 0) < amount)}
                 onClick={() => setBuild(build === kind ? null : kind)}>
                 <span className={`build-icon ${kind}`}><Icon size={25} /></span>
                 <span><strong>{spec.name} <small>{spec.width} × {spec.height}</small></strong>
-                  <span className="cost-line">{Object.entries(spec.cost).map(([resource, amount]) => <ResourceAmount key={resource} resource={resource as Resource} amount={amount} available={village.resources[resource as Resource]} />)}</span>
-                  <BuildCostSummary village={village} cost={spec.cost} />
+                  <span className="cost-line">{Object.entries(spec.cost).map(([resource, amount]) => <ResourceAmount key={resource} resource={resource as Resource} amount={amount} available={village.resources[resource as Resource]} />)}{Object.entries(BUILD_CRAFT_COSTS[kind] ?? {}).map(([item, amount]) => <span key={item} className={`resource-cost${(village.crafts?.[item as CraftItem] ?? 0) < amount ? " is-missing" : ""}`} title={item === "planks" ? "Tábuas" : "Palanques de madeira"}><Package size={13} />{amount}</span>)}</span>
+                  <BuildCostSummary village={village} cost={spec.cost} crafts={BUILD_CRAFT_COSTS[kind]} />
                   <em>{hint}</em>
                 </span>
               </button>
@@ -1357,7 +1424,7 @@ function VillageScene({ village }: { village: VillageState }) {
               <div className="selection-heading">
                 <span className="selection-building-icon">
                   {selectedWorkshop ? (
-                    <img src={`/spritesheets/village/${selectedBuilding.kind}.png`} alt="" draggable={false} />
+                    <img src={`/spritesheets/village/${selectedBuilding.kind}${selectedBuilding.kind === "weaving" || selectedBuilding.kind === "sawmill" ? `-level-${Math.max(1, Math.min(selectedBuilding.kind === "sawmill" ? 3 : 5, selectedBuilding.level))}` : ""}.png`} alt="" draggable={false} />
                   ) : selectedBuilding.kind === "farm" ? (
                     <Sprout size={30} />
                   ) : (
@@ -1365,9 +1432,9 @@ function VillageScene({ village }: { village: VillageState }) {
                     SelectedBuildingIcon ? <SelectedBuildingIcon size={28} /> :
                     <AtlasSprite
                       sprite={selectedBuilding.kind === "barn"
-                        ? `barn${Math.min(3, selectedBuilding.level)}` as "barn1" | "barn2" | "barn3"
+                        ? barnSprite(selectedBuilding.level)
                         : selectedBuilding.kind === "well" ? "well"
-                          : `town${Math.min(3, selectedBuilding.level)}` as "town1" | "town2" | "town3"}
+                          : townSprite(selectedBuilding.level)}
                       scale={selectedBuilding.kind === "well" ? 0.26 : 0.12}
                       style={{ position: "absolute", bottom: 0, left: 1 }}
                     />

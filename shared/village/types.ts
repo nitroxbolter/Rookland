@@ -15,11 +15,11 @@ export interface Sapling extends Point {
   startedAt: number
   finishAt: number
 }
-export type BuildingKind = "townCenter" | "barn" | "farm" | "house" | "well" | "wall" | "gate" | "tower" | "blacksmith" | "weaving" | "barracks" | "ranch"
+export type BuildingKind = "townCenter" | "barn" | "farm" | "house" | "well" | "wall" | "gate" | "tower" | "blacksmith" | "weaving" | "sawmill" | "barracks" | "ranch"
 export type AnimalKind = "pig" | "cow" | "sheep" | "chicken"
 export type AnimalProduct = "milk" | "wool" | "eggs" | "feathers"
 export type AnimalProducts = Record<AnimalProduct, number>
-export type CraftItem = "nails" | "cloth" | "clothing" | "tools" | "weapons" | "armor"
+export type CraftItem = "nails" | "cloth" | "clothing" | "tools" | "weapons" | "armor" | "planks" | "posts"
 export type CraftStock = Record<CraftItem, number>
 export type FarmPhase = "planting" | "growing" | "harvesting"
 export interface Building extends Point {
@@ -55,6 +55,8 @@ export interface CityEconomy {
   trust: number
   financeElapsed: number
   payrollElapsed: number
+  rationElapsed: number
+  rationRemainder: number
   provisions: ProvisionPolicy
   activeSoldierProvision: { gold: number; food: number }
   lastPayroll: { goldDue: number; goldPaid: number; foodDue: number; foodServed: number }
@@ -118,6 +120,7 @@ export type Job =
   | { kind: "idle" }
   | { kind: "move"; destination: Point }
   | { kind: "attackCreature"; targetId: string }
+  | { kind: "attackEnemy"; targetId: string }
   | { kind: "garrison"; targetId: string }
   | { kind: "training"; targetId: string }
   | { kind: "plant"; destination: Point }
@@ -159,6 +162,28 @@ export interface WildCreature extends Point {
   hostileTo?: string
   attackProgress: number
 }
+export interface EnemyUnit extends Point {
+  id: string
+  kind: "villager" | "soldier" | "archer"
+  health: number
+  maxHealth: number
+  facing: "left" | "right" | "up" | "down"
+  job: "gather" | "return" | "guard" | "defend"
+  resource?: Resource
+  targetId?: string
+  carrying?: { resource: Resource; amount: number }
+  path: Point[]
+  progress: number
+}
+export interface EnemyFaction {
+  base: Point
+  level: 1 | 2 | 3
+  resources: Resources
+  units: EnemyUnit[]
+  thinkElapsed: number
+  nextDecisionAt: number
+  hostileTo?: string
+}
 export interface VillageState {
   version: 4
   /** Initial placement of natural resources; persisted after changing the layout. */
@@ -180,6 +205,7 @@ export interface VillageState {
   foodBushesSeeded?: boolean
   units: Unit[]
   creatures?: WildCreature[]
+  enemy?: EnemyFaction
   creatureSpawnAt?: number
   creatureHasSpawned?: boolean
   /** Aldeões pagos e reservados, treinados em sequência no Centro da Vila. */
@@ -212,6 +238,7 @@ export type VillageCommand =
   | { type: "upgradeBarn"; buildingId: string }
   | { type: "upgradeRanch"; buildingId: string }
   | { type: "upgradeWeaving"; buildingId: string }
+  | { type: "upgradeSawmill"; buildingId: string }
   | { type: "upgradeDefense"; buildingId: string }
   | { type: "upgradeHouse"; buildingId: string }
   | { type: "upgradeTownCenter" }
@@ -229,6 +256,7 @@ export type VillageCommand =
   | { type: "garrisonArcher"; unitId: string; towerId: string }
   | { type: "ungarrisonArcher"; unitId: string }
   | { type: "attackCreature"; unitId: string; creatureId: string }
+  | { type: "attackEnemy"; unitId: string; enemyId: string }
   | { type: "stockRanch"; buildingId: string; animal: AnimalKind; amount?: number }
   | { type: "equipSoldier"; unitId: string }
   | { type: "demobilizeUnit"; unitId: string }
